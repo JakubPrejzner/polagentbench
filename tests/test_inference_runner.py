@@ -275,6 +275,57 @@ def test_repair_flag_off_records_no_repair():
     assert s0.parse_error.category == "unknown_action"
 
 
+def test_strict_match_forwarded_into_env_via_reset():
+    """Task.strict_match flips the env into exact-match city resolution."""
+    task = _make_task(prompt="Sprawdź pogodę w Łodzi.")
+    task = task.model_copy(update={"strict_match": True, "max_steps": 2})
+    env = WeatherEnvironment()
+    chat = CannedChat(
+        [
+            (
+                # Polish locative form — without strict mode this would fold to "Łódź".
+                '{"action":"call_tool","tool":"get_weather","arguments":{"city":"Łodzi"}}',
+                1.0,
+                None,
+            ),
+            ('{"action":"final_answer","answer":"ok"}', 1.0, None),
+        ]
+    )
+    traj = agent_loop(
+        task=task, env=env, initial_state={}, seed=0,
+        model_id="m", quant_label="q", complete_chat=chat,
+    )
+    assert traj.steps[0].tool_result["ok"] is False
+    assert traj.steps[0].tool_result["error_code"] == "CITY_NOT_FOUND"
+
+
+def test_hardcoded_state_forwarded_into_env_via_reset():
+    task = _make_task(prompt="Sprawdź pogodę w Warszawie.")
+    task = task.model_copy(
+        update={
+            "max_steps": 2,
+            "hardcoded_state": {"cities": {"Warszawa": {"condition": "fog"}}},
+        }
+    )
+    env = WeatherEnvironment()
+    chat = CannedChat(
+        [
+            (
+                '{"action":"call_tool","tool":"get_weather","arguments":{"city":"Warszawa"}}',
+                1.0,
+                None,
+            ),
+            ('{"action":"final_answer","answer":"ok"}', 1.0, None),
+        ]
+    )
+    traj = agent_loop(
+        task=task, env=env, initial_state={}, seed=0,
+        model_id="m", quant_label="q", complete_chat=chat,
+    )
+    assert traj.steps[0].tool_result["ok"] is True
+    assert traj.steps[0].tool_result["result"]["condition"] == "fog"
+
+
 def test_unknown_environment_in_runner_raises():
     from polagentbench.inference.llama_cpp_runner import LlamaCppRunner
 

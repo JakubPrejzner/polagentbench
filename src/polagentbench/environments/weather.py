@@ -71,6 +71,8 @@ _CITIES: dict[str, dict[str, Any]] = {
     "Świnoujście": {"temperature_c": 8.0, "condition": "windy", "humidity_pct": 84},
     "Sopot": {"temperature_c": 7.5, "condition": "windy", "humidity_pct": 81},
     "Zielona Góra": {"temperature_c": 9.5, "condition": "clear", "humidity_pct": 63},
+    "Żory": {"temperature_c": 8.0, "condition": "cloudy", "humidity_pct": 70},
+    "Tatry": {"temperature_c": -5.0, "condition": "snow", "humidity_pct": 88},
     # --- International (20) ---
     "London": {"temperature_c": 11.0, "condition": "rain", "humidity_pct": 78},
     "Paris": {"temperature_c": 12.0, "condition": "cloudy", "humidity_pct": 70},
@@ -134,21 +136,49 @@ _VALID_SEVERITY = {"low", "medium", "high"}
 _VALID_TEMP_UNIT = {"celsius", "fahrenheit"}
 
 
+_RESERVED_STRICT_MATCH_KEY = "__strict_match"
+_RESERVED_OVERRIDES_KEY = "__overrides"
+
+
 class WeatherEnvironment(Environment):
-    """Concrete weather environment used by the smoke-test suite."""
+    """Concrete weather environment used by the smoke-test suite.
+
+    Honours two reserved keys on the ``initial_state`` dict passed to
+    :meth:`reset`, populated by the runner from the corresponding fields on
+    :class:`~polagentbench.types.Task`:
+
+    * ``__strict_match`` — bool. When True, :meth:`_resolve_city` requires
+      exact equality with a canonical city name; diacritic and inflection
+      folding are disabled. Used by tasks that intentionally measure
+      ``DIACRITIC_CORRUPTION`` / ``INFLECTION_MISMATCH``.
+    * ``__overrides`` — namespaced dict, e.g. ``{"cities": {"Poznań":
+      {"condition": "rain"}}}``. Per-key overrides are layered on top of the
+      built-in city record at lookup time so adversarial tasks can pin a
+      condition without mutating the module-level city DB.
+    """
 
     def __init__(self) -> None:
         self._alerts_sent: list[dict[str, Any]] = []
         self._lookup_log: list[dict[str, Any]] = []
+        self._strict_match: bool = False
+        self._city_overrides: dict[str, dict[str, Any]] = {}
 
     # ------------------------------------------------------------------
     # Environment ABC
     # ------------------------------------------------------------------
 
     def reset(self, initial_state: dict[str, Any]) -> None:
-        """Discard alerts and lookup log; ignore ``initial_state`` (stateless env)."""
+        """Discard alerts and lookup log; absorb optional reserved keys."""
         self._alerts_sent = list(initial_state.get("alerts_sent", []))
         self._lookup_log = []
+        self._strict_match = bool(initial_state.get(_RESERVED_STRICT_MATCH_KEY, False))
+        overrides = initial_state.get(_RESERVED_OVERRIDES_KEY) or {}
+        cities_override = overrides.get("cities") if isinstance(overrides, dict) else None
+        self._city_overrides = (
+            {k: dict(v) for k, v in cities_override.items() if isinstance(v, dict)}
+            if isinstance(cities_override, dict)
+            else {}
+        )
 
     def current_state(self) -> dict[str, Any]:
         return {
@@ -185,12 +215,39 @@ class WeatherEnvironment(Environment):
         Returns ``(canonical_name, record)`` on success and ``(None, None)``
         otherwise. Always logs the attempt to ``lookup_log`` so analysis can
         attribute diacritic-corruption rates per task.
+
+        In strict mode, only an exact match against a canonical city name is
+        accepted; diacritic and inflection folding are bypassed, surfacing
+        the underlying corruption as a CITY_NOT_FOUND error.
         """
         if not isinstance(raw, str) or not raw.strip():
             self._lookup_log.append(
                 {"input": raw, "canonical": None, "diacritic_corrupted": False, "found": False}
             )
             return None, None
+
+        if self._strict_match:
+            canonical = raw if raw in _CITIES else None
+            if canonical is None:
+                self._lookup_log.append(
+                    {
+                        "input": raw,
+                        "canonical": None,
+                        "diacritic_corrupted": False,
+                        "found": False,
+                    }
+                )
+                return None, None
+            self._lookup_log.append(
+                {
+                    "input": raw,
+                    "canonical": canonical,
+                    "diacritic_corrupted": False,
+                    "found": True,
+                }
+            )
+            return canonical, self._record_for(canonical)
+
         key = _normalize_key(raw)
         canonical = _LOOKUP_INDEX.get(key)
         if canonical is None:
@@ -212,7 +269,15 @@ class WeatherEnvironment(Environment):
                 "found": True,
             }
         )
-        return canonical, _CITIES[canonical]
+        return canonical, self._record_for(canonical)
+
+    def _record_for(self, canonical: str) -> dict[str, Any]:
+        """Return the city record with any per-task field overrides layered on top."""
+        base = _CITIES[canonical]
+        override = self._city_overrides.get(canonical)
+        if not override:
+            return dict(base)
+        return {**base, **override}
 
 
 # ---------------------------------------------------------------------------

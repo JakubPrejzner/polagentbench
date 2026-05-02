@@ -70,8 +70,17 @@ def agent_loop(
     ``raw_model_output_pre_repair`` preserves the original. This lets
     the smoke evaluator distinguish "agent emitted valid JSON" from
     "agent emitted nearly-valid JSON that was patched by the harness".
+
+    ``task.strict_match`` and ``task.hardcoded_state`` are forwarded to
+    ``env.reset`` via two reserved keys (``__strict_match`` / ``__overrides``)
+    rather than extending the Environment ABC.
     """
-    env.reset(initial_state)
+    reset_state = dict(initial_state)
+    if task.strict_match:
+        reset_state["__strict_match"] = True
+    if task.hardcoded_state:
+        reset_state["__overrides"] = task.hardcoded_state
+    env.reset(reset_state)
     system_prompt = build_system_prompt(
         available_tools=task.available_tools,
         language=prompt_language,

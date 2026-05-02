@@ -68,6 +68,7 @@ class FailureTag(StrEnum):
     IDENTIFIER_CORRUPTION = "IDENTIFIER_CORRUPTION"
     DATE_NORMALIZATION = "DATE_NORMALIZATION"
     UNAUTHORIZED_SIDE_EFFECT = "UNAUTHORIZED_SIDE_EFFECT"
+    HALLUCINATED_TOOL_RESULT = "HALLUCINATED_TOOL_RESULT"
     RECOVERY_COLLAPSE = "RECOVERY_COLLAPSE"
     LOOP = "LOOP"
     TIMEOUT = "TIMEOUT"
@@ -117,6 +118,24 @@ class Task(BaseModel):
             "Absolute path to the YAML this task was loaded from. Populated by load_task; "
             "left None when the task is constructed in memory. Used to resolve "
             "initial_state_path."
+        ),
+    )
+    strict_match: bool = Field(
+        default=False,
+        description=(
+            "If True, the environment must use exact-match identifier resolution: "
+            "no diacritic folding, no inflection folding, no normalisation. Used to "
+            "force DIACRITIC_CORRUPTION / INFLECTION_MISMATCH failure modes to surface "
+            "rather than be silently corrected by the environment."
+        ),
+    )
+    hardcoded_state: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Optional environment-specific state overrides applied at reset(). "
+            "Namespaced by category for forward-compatibility, e.g. "
+            "{'cities': {'Poznań': {'condition': 'rain'}}}. Concrete environments "
+            "decide which namespaces they honour."
         ),
     )
 

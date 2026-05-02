@@ -179,3 +179,80 @@ def test_reset_seeds_alerts_from_initial_state():
     env = WeatherEnvironment()
     env.reset({"alerts_sent": [{"city": "Kraków", "severity": "low", "message": "x"}]})
     assert len(env.current_state()["alerts_sent"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Tatry, strict_match and hardcoded_state (prompt 03 additions)
+# ---------------------------------------------------------------------------
+
+
+def test_tatry_is_in_city_db(env: WeatherEnvironment):
+    obs = env.execute_tool("get_weather", {"city": "Tatry"})
+    assert obs["ok"] is True
+    assert obs["result"]["city"] == "Tatry"
+    assert obs["result"]["temperature_c"] == -5.0
+
+
+def test_zory_with_diacritics_resolves(env: WeatherEnvironment):
+    obs = env.execute_tool("get_weather", {"city": "Żory"})
+    assert obs["ok"] is True
+    assert obs["result"]["city"] == "Żory"
+
+
+def test_strict_match_rejects_diacritic_stripped_input():
+    env = WeatherEnvironment()
+    env.reset({"__strict_match": True})
+    obs = env.execute_tool("get_weather", {"city": "Lodz"})
+    assert obs["ok"] is False
+    assert obs["error_code"] == "CITY_NOT_FOUND"
+
+
+def test_strict_match_rejects_inflected_form():
+    env = WeatherEnvironment()
+    env.reset({"__strict_match": True})
+    # "Łodzi" is locative case of "Łódź" — folded form would otherwise resolve.
+    obs = env.execute_tool("get_weather", {"city": "Łodzi"})
+    assert obs["ok"] is False
+    assert obs["error_code"] == "CITY_NOT_FOUND"
+
+
+def test_strict_match_accepts_canonical_form():
+    env = WeatherEnvironment()
+    env.reset({"__strict_match": True})
+    obs = env.execute_tool("get_weather", {"city": "Łódź"})
+    assert obs["ok"] is True
+    assert obs["result"]["city"] == "Łódź"
+
+
+def test_strict_match_default_off_after_plain_reset():
+    env = WeatherEnvironment()
+    env.reset({"__strict_match": True})
+    env.reset({})  # second reset clears strict mode
+    obs = env.execute_tool("get_weather", {"city": "Lodz"})
+    assert obs["ok"] is True
+
+
+def test_hardcoded_state_overrides_city_condition():
+    env = WeatherEnvironment()
+    env.reset({"__overrides": {"cities": {"Warszawa": {"condition": "fog"}}}})
+    obs = env.execute_tool("get_weather", {"city": "Warszawa"})
+    assert obs["ok"] is True
+    assert obs["result"]["condition"] == "fog"
+    # Untouched fields stay at module-level defaults.
+    assert obs["result"]["temperature_c"] == 9.0
+
+
+def test_hardcoded_state_does_not_leak_into_other_cities():
+    env = WeatherEnvironment()
+    env.reset({"__overrides": {"cities": {"Warszawa": {"condition": "fog"}}}})
+    env.execute_tool("get_weather", {"city": "Warszawa"})
+    obs = env.execute_tool("get_weather", {"city": "Kraków"})
+    assert obs["result"]["condition"] == "cloudy"
+
+
+def test_hardcoded_state_cleared_on_subsequent_reset():
+    env = WeatherEnvironment()
+    env.reset({"__overrides": {"cities": {"Warszawa": {"condition": "fog"}}}})
+    env.reset({})
+    obs = env.execute_tool("get_weather", {"city": "Warszawa"})
+    assert obs["result"]["condition"] == "cloudy"

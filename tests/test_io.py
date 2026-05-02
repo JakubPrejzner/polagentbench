@@ -94,3 +94,31 @@ def test_load_task_rejects_invalid_yaml(tmp_path: Path):
     bad.write_text("id: : :\n  - not a mapping\n", encoding="utf-8")
     with pytest.raises(ValueError):
         load_task(bad)
+
+
+def test_task_strict_match_and_hardcoded_state_load(tmp_path: Path):
+    f = tmp_path / "ok.yaml"
+    f.write_text(
+        "id: t1\n"
+        "category: TOOL_SELECTION\n"
+        "environment: weather\n"
+        "language_variant: PL_EN\n"
+        "prompt: hello\n"
+        "available_tools: []\n"
+        "initial_state_path: states/empty.json\n"
+        "expected_final_state: {}\n"
+        "strict_match: true\n"
+        "hardcoded_state:\n"
+        "  cities:\n"
+        "    Warszawa: {condition: fog}\n",
+        encoding="utf-8",
+    )
+    task = load_task(f)
+    assert task.strict_match is True
+    assert task.hardcoded_state == {"cities": {"Warszawa": {"condition": "fog"}}}
+
+
+def test_task_defaults_when_new_fields_absent():
+    task = load_task(DUMMY_TASK_PATH)
+    assert task.strict_match is False
+    assert task.hardcoded_state is None
