@@ -35,6 +35,7 @@ __all__ = [
     "FinalAnswer",
     "ParseError",
     "ParseErrorCategory",
+    "attempt_repair",
     "parse_action",
 ]
 
@@ -235,3 +236,80 @@ def parse_action(text: str) -> ActionResult:
         )
 
     return ActionResult(action=action)
+
+
+# ---------------------------------------------------------------------------
+# Opt-in repair pass
+# ---------------------------------------------------------------------------
+
+
+def attempt_repair(text: str, available_tools: list[str]) -> str | None:
+    """Best-effort repair of a single, narrow protocol-violation pattern.
+
+    Currently fixes exactly one shape::
+
+        {"action": "<tool_name>", "arguments": {...}}
+
+    by rewriting it to::
+
+        {"action": "call_tool", "tool": "<tool_name>", "arguments": {...}}
+
+    when ``<tool_name>`` is in ``available_tools``. This is the failure
+    mode observed in the prompt 02.5 smoke run, where the model used the
+    tool name as the discriminator value instead of as the ``tool`` field.
+    The model often hallucinated a side effect immediately after, so left
+    unrepaired it bleeds into ``UNAUTHORIZED_SIDE_EFFECT`` territory.
+
+    Repair semantics:
+
+    * Returns the rewritten *full* text on success — not just the JSON
+      substring — so downstream parsing keeps the original surrounding
+      prose discarded by ``parse_action``'s extraction step regardless.
+      In practice the parser ignores everything outside the JSON object,
+      so we just emit the canonical JSON.
+    * Returns ``None`` whenever the repair can't be applied unambiguously:
+      no JSON found, invalid JSON, action already valid, action not in
+      ``available_tools``, or a conflicting ``tool`` field disagrees with
+      the discriminator.
+    * Pure function: no I/O, no global state.
+    * Idempotent: applying ``attempt_repair`` to its own output returns
+      ``None`` (the result is already valid), so ``repair(repair(x) or x)``
+      is stable.
+
+    Out of scope for this pass: missing JSON, markdown fences, missing
+    fields beyond the discriminator, schema-shape mismatches. Those would
+    each be separate, separately-flagged repairs.
+    """
+    json_text = _extract_json_text(text)
+    if json_text is None:
+        return None
+    try:
+        data = json.loads(json_text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    action_name = data.get("action")
+    if action_name in ("call_tool", "final_answer"):
+        return None  # already valid; no repair needed
+    if not isinstance(action_name, str) or action_name not in available_tools:
+        return None
+
+    # If the model also wrote a tool field that disagrees with the
+    # discriminator we don't know which one it really meant — bail out
+    # rather than silently picking one.
+    explicit_tool = data.get("tool")
+    if explicit_tool is not None and explicit_tool != action_name:
+        return None
+
+    arguments = data.get("arguments", {})
+    if not isinstance(arguments, dict):
+        return None
+
+    repaired = {
+        "action": "call_tool",
+        "tool": action_name,
+        "arguments": arguments,
+    }
+    return json.dumps(repaired, ensure_ascii=False)
