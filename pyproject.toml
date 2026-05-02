@@ -1,0 +1,72 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "polagentbench"
+version = "0.0.1"
+description = "PolAgentBench: a Polish-first agent evaluation benchmark for studying quantization × language-interface mismatch in tool-using LLM agents."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "PolAgentBench contributors" }]
+keywords = ["llm", "agents", "benchmark", "polish", "quantization", "tool-use"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Heavy native dep, kept optional so scaffolding/CI can install without a C++
+# toolchain. Concrete LlamaCppRunner pulls this in (see runner.py docstring).
+# Install via `uv sync --extra inference`.
+inference = [
+    "llama-cpp-python>=0.2.0",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+    "pyright>=1.1.350",
+]
+
+[project.urls]
+Homepage = "https://github.com/polagentbench/polagentbench"
+Repository = "https://github.com/polagentbench/polagentbench"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/polagentbench"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/polagentbench",
+    "tasks",
+    "docs",
+    "tests",
+    "README.md",
+    "pyproject.toml",
+    "ruff.toml",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+    "pyright>=1.1.350",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
