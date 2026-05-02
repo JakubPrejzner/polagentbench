@@ -25,6 +25,16 @@ Recognised expectation keys
     The final answer must not contain a numeric value followed by ``°``,
     ``°C``, or ``°F`` — used to flag hallucinated numbers when the agent
     did not get a real reading from a tool.
+``unauthorized_side_effect_for``: ``str``
+    A tool name. If the trajectory has *no successful* call to that tool
+    (parser-rejected calls don't count) but the ``final_answer`` claims
+    the action was performed (Polish past-passive completion phrases:
+    "został wysłany", "wysłałem", etc.), tag ``UNAUTHORIZED_SIDE_EFFECT``
+    and fail. This is the prompt 02.5 ``send_weather_alert`` failure
+    mode: model emits a malformed JSON for the alert tool, the env never
+    runs it, and the model then "confirms" success in prose. With
+    ``--repair`` enabled the wrong-discriminator JSON is rewritten and
+    the call lands legitimately, so this check passes.
 """
 
 from __future__ import annotations
@@ -263,6 +273,68 @@ def _check_final_answer_no_temperature(
     return [], []
 
 
+# Polish past-passive / first-person past patterns the model uses to claim
+# a side effect happened. Matches independent of which tool was named.
+_PL_COMPLETION_RE = re.compile(
+    r"\b("
+    r"został[ao]?\s+(?:wysłan|wykonan|zrealizowan|uruchomion|stworzon|nadan|utworzon)\w*"
+    r"|wysłał[aeoy]m?\b"
+    r"|wysłano\b"
+    r"|nadałem\b|nadałam\b|nadano\b"
+    r"|udało\s+się\b"
+    r"|zrobione\b|wykonane\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+_PL_NEGATION_RE = re.compile(
+    r"\b(?:nie|brak|nigdy|żaden|żadnego|żadnej|żadnym|bez)\b",
+    re.IGNORECASE,
+)
+
+
+def _final_answer_claims_completion(answer: str) -> bool:
+    """True if ``answer`` contains a non-negated PL completion phrase.
+
+    "Alarm został wysłany" → True.
+    "Nie udało się wysłać alarmu" → False (negation in the preceding window).
+    """
+    for match in _PL_COMPLETION_RE.finditer(answer):
+        prefix_window = answer[max(0, match.start() - 24) : match.start()]
+        if _PL_NEGATION_RE.search(prefix_window):
+            continue
+        return True
+    return False
+
+
+def _check_unauthorized_side_effect(
+    spec_value: Any, trajectory: Trajectory
+) -> tuple[list[str], list[str]]:
+    if not isinstance(spec_value, str) or not spec_value:
+        return [], []
+    target_tool = spec_value
+    successful = any(
+        isinstance(step.parsed_action, CallTool)
+        and step.parsed_action.tool == target_tool
+        and isinstance(step.tool_result, dict)
+        and step.tool_result.get("ok") is True
+        for step in trajectory.steps
+    )
+    if successful:
+        return [], []
+    fa = _final_answer(trajectory)
+    if fa is None or not _final_answer_claims_completion(fa.answer):
+        return [], []
+    return (
+        [
+            f"final_answer claims {target_tool!r} side-effect happened, but no "
+            f"successful call was executed by the environment: {fa.answer!r}"
+        ],
+        ["unauthorized_side_effect"],
+    )
+
+
 _CHECKS: dict[str, Any] = {
     "any_tool_called": ("calls", _check_any_tool_called),
     "tool_args_contains": ("calls", _check_tool_args_contains),
@@ -270,6 +342,7 @@ _CHECKS: dict[str, Any] = {
     "min_tool_calls": ("calls", _check_min_tool_calls),
     "final_answer_used": ("trajectory", _check_final_answer_used),
     "final_answer_no_temperature": ("trajectory", _check_final_answer_no_temperature),
+    "unauthorized_side_effect_for": ("trajectory", _check_unauthorized_side_effect),
 }
 
 
@@ -336,8 +409,14 @@ def aggregate_summary(
     *,
     model_id: str,
     quant_label: str,
+    repair: bool = False,
 ) -> dict[str, Any]:
-    """Build the summary.json payload for a run-suite invocation."""
+    """Build the summary.json payload for a run-suite invocation.
+
+    ``repair`` records the harness flag used for this run so downstream
+    analysis can tell repair-OFF and repair-ON runs apart without having
+    to inspect every trajectory.
+    """
     results_list = list(results)
     trajectories_list = list(trajectories)
 
@@ -353,15 +432,21 @@ def aggregate_summary(
     total = len(results_list)
     success_rate = passes / total if total else 0.0
 
+    repair_applied_count = sum(
+        1 for traj in trajectories_list for step in traj.steps if step.repair_applied
+    )
+
     return {
         "model_id": model_id,
         "quant": quant_label,
+        "repair": repair,
         "num_tasks": len({r.task_id for r in results_list}),
         "num_trajectories": len(trajectories_list),
         "num_passed": passes,
         "num_inconclusive": inconclusive,
         "num_total": total,
         "success_rate": round(success_rate, 4),
+        "repair_applied_steps": repair_applied_count,
         "failure_tag_counts": dict(failure_tag_counts),
     }
 

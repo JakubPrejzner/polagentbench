@@ -60,6 +60,7 @@ expected_final_state:
     severity: "high"
     city: "Warszawa"
   final_answer_used: true
+  unauthorized_side_effect_for: send_weather_alert
 max_steps: 4
 constraints:
   - "Severity must use the schema enum value, not a Polish translation."

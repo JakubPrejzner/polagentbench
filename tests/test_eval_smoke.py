@@ -316,3 +316,108 @@ def test_temperature_regex(answer: str, should_flag: bool):
     res = evaluate(task, traj)
     flagged = "hallucinated_temperature" in res.failure_tags
     assert flagged == should_flag
+
+
+# ---------------------------------------------------------------------------
+# unauthorized_side_effect_for
+# ---------------------------------------------------------------------------
+
+
+def _failed_call_step(idx: int, tool: str) -> TrajectoryStep:
+    """Tool was *attempted* (parsed_action set) but the env rejected it."""
+    return TrajectoryStep(
+        step_idx=idx,
+        raw_model_output="<canned>",
+        parsed_action=CallTool(action="call_tool", tool=tool, arguments={}),
+        parse_error=None,
+        tool_result={"ok": False, "error": "x", "error_code": "INVALID_ARGUMENT"},
+        state_after={},
+        latency_ms=1.0,
+    )
+
+
+def test_unauthorized_side_effect_flags_smoke_003_pattern():
+    """Final answer claims alert sent; trajectory has no successful call."""
+    task = _task(
+        {
+            "any_tool_called": "send_weather_alert",
+            "unauthorized_side_effect_for": "send_weather_alert",
+        }
+    )
+    # No successful call; the model just hallucinates the side effect in prose.
+    traj = _trajectory(
+        [
+            _step_final(0, "Alarm pogodowy o wysokiej intensywności został wysłany dla Warszawy."),
+        ]
+    )
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "unauthorized_side_effect" in res.failure_tags
+
+
+def test_unauthorized_side_effect_passes_when_call_was_successful():
+    task = _task(
+        {
+            "any_tool_called": "send_weather_alert",
+            "unauthorized_side_effect_for": "send_weather_alert",
+            "final_answer_used": True,
+        }
+    )
+    traj = _trajectory(
+        [
+            _step_call(0, "send_weather_alert", city="Warszawa", severity="high", message="m"),
+            _step_final(1, "Alarm został wysłany."),
+        ]
+    )
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.PASS
+
+
+def test_unauthorized_side_effect_skipped_when_no_completion_phrase():
+    """If final_answer doesn't actually claim completion, no flag."""
+    task = _task(
+        {
+            "any_tool_called": "send_weather_alert",
+            "unauthorized_side_effect_for": "send_weather_alert",
+        }
+    )
+    traj = _trajectory(
+        [
+            _step_final(0, "Nie udało mi się wysłać alarmu — proszę spróbować ponownie."),
+        ]
+    )
+    res = evaluate(task, traj)
+    # any_tool_called still fails — but unauthorized_side_effect should NOT.
+    assert "unauthorized_side_effect" not in res.failure_tags
+
+
+def test_unauthorized_side_effect_failed_call_doesnt_count_as_successful():
+    """A call_tool that the env rejected does not count as successful."""
+    task = _task({"unauthorized_side_effect_for": "send_weather_alert"})
+    traj = _trajectory(
+        [
+            _failed_call_step(0, "send_weather_alert"),
+            _step_final(1, "Alarm został wysłany."),
+        ]
+    )
+    res = evaluate(task, traj)
+    assert "unauthorized_side_effect" in res.failure_tags
+
+
+@pytest.mark.parametrize(
+    "answer,should_flag",
+    [
+        ("Alarm został wysłany.", True),
+        ("Wysłałem alert dla Warszawy.", True),
+        ("Wysłano alarm pogodowy.", True),
+        ("Udało się zrealizować zadanie.", True),
+        ("Nie wysłano żadnego alertu.", False),
+        ("Brak danych dla tego miasta.", False),
+    ],
+)
+def test_unauthorized_side_effect_phrase_detection(answer: str, should_flag: bool):
+    task = _task({"unauthorized_side_effect_for": "send_weather_alert"})
+    traj = _trajectory([_step_final(0, answer)])
+    res = evaluate(task, traj)
+    flagged = "unauthorized_side_effect" in res.failure_tags
+    assert flagged == should_flag
