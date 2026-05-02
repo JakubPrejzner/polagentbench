@@ -284,3 +284,53 @@ def test_environment_registry_includes_weather():
     envs = cli._build_environments()
     assert "weather" in envs
     assert envs["weather"].available_tool_names()
+
+
+def test_repair_flag_propagates_to_summary(tmp_path: Path):
+    runner = _ScriptedRunner({"weather_smoke_001": "pass"})
+    rc = cli.main(
+        [
+            "run",
+            "--model-path",
+            "x.gguf",
+            "--model-id",
+            "fake-m",
+            "--quant",
+            "Q8_0",
+            "--task",
+            str(SMOKE_DIR / "weather_smoke_001.yaml"),
+            "--output",
+            str(tmp_path),
+            "--seed",
+            "7",
+            "--repair",
+        ],
+        runner_factory=_factory(runner),
+    )
+    assert rc == 0
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert summary["repair"] is True
+    assert "repair_applied_steps" in summary
+
+
+def test_repair_flag_default_off(tmp_path: Path):
+    runner = _ScriptedRunner({"weather_smoke_001": "pass"})
+    rc = cli.main(
+        [
+            "run",
+            "--model-path",
+            "x.gguf",
+            "--model-id",
+            "fake-m",
+            "--quant",
+            "Q8_0",
+            "--task",
+            str(SMOKE_DIR / "weather_smoke_001.yaml"),
+            "--output",
+            str(tmp_path),
+        ],
+        runner_factory=_factory(runner),
+    )
+    assert rc == 0
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert summary["repair"] is False

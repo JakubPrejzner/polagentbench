@@ -86,6 +86,14 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--max-tokens", type=int, default=512)
         p.add_argument("--temperature", type=float, default=0.0)
         p.add_argument("--top-p", type=float, default=1.0)
+        p.add_argument(
+            "--repair",
+            action="store_true",
+            help=(
+                "Apply attempt_repair to each model output before parsing. "
+                "Default OFF — repair is a benchmarked mitigation, not the baseline."
+            ),
+        )
         p.add_argument("--verbose", action="store_true")
 
     # `run`
@@ -152,6 +160,7 @@ def _default_runner_factory(
         max_tokens=args.max_tokens,
         temperature=args.temperature,
         top_p=args.top_p,
+        repair=args.repair,
     )
 
 
@@ -168,6 +177,7 @@ def _run_suite(
     *,
     model_id: str,
     quant_label: str,
+    repair: bool,
     seed_for_console: int | None = None,
 ) -> tuple[list[Trajectory], list[SmokeResult]]:
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -186,7 +196,13 @@ def _run_suite(
                 trajectories.append(trajectory)
                 results.append(evaluate(task, trajectory))
 
-    summary = aggregate_summary(results, trajectories, model_id=model_id, quant_label=quant_label)
+    summary = aggregate_summary(
+        results,
+        trajectories,
+        model_id=model_id,
+        quant_label=quant_label,
+        repair=repair,
+    )
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
 
     report = format_console_report(
@@ -212,6 +228,7 @@ def _cmd_run(args: argparse.Namespace, runner_factory: RunnerFactory) -> int:
         output_dir=args.output,
         model_id=args.model_id,
         quant_label=args.quant,
+        repair=args.repair,
         seed_for_console=args.seed,
     )
     return 0
@@ -232,6 +249,7 @@ def _cmd_run_suite(args: argparse.Namespace, runner_factory: RunnerFactory) -> i
         output_dir=args.output,
         model_id=args.model_id,
         quant_label=args.quant,
+        repair=args.repair,
         seed_for_console=seeds[0] if len(seeds) == 1 else None,
     )
     return 0

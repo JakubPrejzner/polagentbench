@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from ..environments.base import Environment
-from ..protocol import Action, CallTool, FinalAnswer, parse_action
+from ..protocol import Action, CallTool, FinalAnswer, attempt_repair, parse_action
 from ..runner import ModelRunner
 from ..types import FailureTag, Task, Trajectory, TrajectoryStep
 from .prompts import PromptLanguage, build_system_prompt
@@ -58,10 +58,18 @@ def agent_loop(
     quant_label: str,
     complete_chat: CompleteChat,
     prompt_language: PromptLanguage = "pl",
+    repair: bool = False,
 ) -> Trajectory:
     """Run one task end-to-end and produce a :class:`Trajectory`.
 
     Pure function over its inputs; never raises on agent misbehaviour.
+
+    When ``repair`` is True, every step's raw output is passed through
+    :func:`polagentbench.protocol.attempt_repair` before parsing. If a
+    repair fires, ``raw_model_output`` records the *post-repair* text and
+    ``raw_model_output_pre_repair`` preserves the original. This lets
+    the smoke evaluator distinguish "agent emitted valid JSON" from
+    "agent emitted nearly-valid JSON that was patched by the harness".
     """
     env.reset(initial_state)
     system_prompt = build_system_prompt(
@@ -73,6 +81,7 @@ def agent_loop(
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": task.prompt},
     ]
+    available_tool_names = [t["name"] for t in task.available_tools if "name" in t]
 
     steps: list[TrajectoryStep] = []
     failure_tags: list[FailureTag] = []
@@ -81,23 +90,32 @@ def agent_loop(
     final_answer_emitted = False
 
     for step_idx in range(task.max_steps):
-        text, latency_ms, usage = complete_chat(messages, seed)
+        original_text, latency_ms, usage = complete_chat(messages, seed)
         total_latency_ms += latency_ms
-        total_tokens += _tokens_used(text, usage)
+        total_tokens += _tokens_used(original_text, usage)
 
-        result = parse_action(text)
-        messages.append({"role": "assistant", "content": text})
+        repaired_text: str | None = None
+        if repair:
+            repaired_text = attempt_repair(original_text, available_tool_names)
+        text_to_parse = repaired_text if repaired_text is not None else original_text
+        repair_applied = repaired_text is not None
+        pre_repair = original_text if repair_applied else None
+
+        result = parse_action(text_to_parse)
+        messages.append({"role": "assistant", "content": original_text})
 
         if not result.ok:
             steps.append(
                 TrajectoryStep(
                     step_idx=step_idx,
-                    raw_model_output=text,
+                    raw_model_output=text_to_parse,
                     parsed_action=None,
                     parse_error=result.error,
                     tool_result=None,
                     state_after=env.current_state(),
                     latency_ms=latency_ms,
+                    repair_applied=repair_applied,
+                    raw_model_output_pre_repair=pre_repair,
                 )
             )
             continue
@@ -108,12 +126,14 @@ def agent_loop(
             steps.append(
                 TrajectoryStep(
                     step_idx=step_idx,
-                    raw_model_output=text,
+                    raw_model_output=text_to_parse,
                     parsed_action=action,
                     parse_error=None,
                     tool_result=None,
                     state_after=env.current_state(),
                     latency_ms=latency_ms,
+                    repair_applied=repair_applied,
+                    raw_model_output_pre_repair=pre_repair,
                 )
             )
             final_answer_emitted = True
@@ -125,12 +145,14 @@ def agent_loop(
         steps.append(
             TrajectoryStep(
                 step_idx=step_idx,
-                raw_model_output=text,
+                raw_model_output=text_to_parse,
                 parsed_action=action,
                 parse_error=None,
                 tool_result=observation,
                 state_after=env.current_state(),
                 latency_ms=latency_ms,
+                repair_applied=repair_applied,
+                raw_model_output_pre_repair=pre_repair,
             )
         )
         messages.append({"role": "user", "content": _format_tool_result(action.tool, observation)})
@@ -195,6 +217,7 @@ class LlamaCppRunner(ModelRunner):
         max_tokens: int = 512,
         temperature: float = 0.0,
         top_p: float = 1.0,
+        repair: bool = False,
     ) -> None:
         self.model_path = Path(model_path)
         self._model_id = model_id
@@ -208,6 +231,7 @@ class LlamaCppRunner(ModelRunner):
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.top_p = top_p
+        self.repair = repair
         self._llm: Any | None = None  # llama_cpp.Llama, lazily constructed
 
     # ------------------------------------------------------------------
@@ -237,6 +261,7 @@ class LlamaCppRunner(ModelRunner):
             quant_label=self._quant_label,
             complete_chat=self._complete_chat,
             prompt_language=self.prompt_language,
+            repair=self.repair,
         )
 
     # ------------------------------------------------------------------

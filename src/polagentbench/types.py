@@ -132,7 +132,13 @@ class TrajectoryStep(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     step_idx: int = Field(ge=0, description="Zero-based index of this step in the trajectory.")
-    raw_model_output: str = Field(description="Verbatim text emitted by the model for this step.")
+    raw_model_output: str = Field(
+        description=(
+            "Text actually fed to parse_action for this step. When repair is enabled "
+            "and fired, this is the *post-repair* text; the original is preserved "
+            "in ``raw_model_output_pre_repair``."
+        )
+    )
     parsed_action: Action | None = Field(
         default=None,
         description="Parsed action when parsing succeeded; otherwise None.",
@@ -152,6 +158,21 @@ class TrajectoryStep(BaseModel):
     latency_ms: float = Field(
         ge=0.0,
         description="Wall-clock latency of this step (model + tool execution), in milliseconds.",
+    )
+    repair_applied: bool = Field(
+        default=False,
+        description=(
+            "True if attempt_repair fired on this step's raw output and the "
+            "repaired text replaced the original before parsing."
+        ),
+    )
+    raw_model_output_pre_repair: str | None = Field(
+        default=None,
+        description=(
+            "Original verbatim model output, populated only when repair_applied "
+            "is True. Lets analysis distinguish 'agent emitted this directly' "
+            "from 'agent emitted X but the runner rewrote it'."
+        ),
     )
 
 

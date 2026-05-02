@@ -215,6 +215,66 @@ def test_token_estimation_when_usage_missing():
     assert traj.total_tokens < 200
 
 
+def test_repair_flag_fixes_wrong_discriminator_step():
+    """Wrong-discriminator output is rewritten before parse when repair=True."""
+    task = _make_task(prompt="Wyślij alarm.")
+    env = WeatherEnvironment()
+    chat = CannedChat(
+        [
+            (
+                # Exactly the smoke_003 failure shape: action == tool name.
+                '{"action":"get_weather","arguments":{"city":"Kraków"}}',
+                1.0,
+                None,
+            ),
+            ('{"action":"final_answer","answer":"ok"}', 1.0, None),
+        ]
+    )
+    traj = agent_loop(
+        task=task,
+        env=env,
+        initial_state={},
+        seed=0,
+        model_id="m",
+        quant_label="q",
+        complete_chat=chat,
+        repair=True,
+    )
+    assert traj.success is True
+    s0 = traj.steps[0]
+    assert s0.repair_applied is True
+    assert s0.raw_model_output_pre_repair is not None
+    assert '"action":"get_weather"' in s0.raw_model_output_pre_repair
+    assert isinstance(s0.parsed_action, CallTool)
+    assert s0.parsed_action.tool == "get_weather"
+
+
+def test_repair_flag_off_records_no_repair():
+    task = _make_task(max_steps=1)
+    env = WeatherEnvironment()
+    chat = CannedChat(
+        [
+            ('{"action":"get_weather","arguments":{"city":"Kraków"}}', 1.0, None),
+        ]
+    )
+    traj = agent_loop(
+        task=task,
+        env=env,
+        initial_state={},
+        seed=0,
+        model_id="m",
+        quant_label="q",
+        complete_chat=chat,
+        repair=False,
+    )
+    s0 = traj.steps[0]
+    assert s0.repair_applied is False
+    assert s0.raw_model_output_pre_repair is None
+    # And parsing fails because we did NOT repair.
+    assert s0.parse_error is not None
+    assert s0.parse_error.category == "unknown_action"
+
+
 def test_unknown_environment_in_runner_raises():
     from polagentbench.inference.llama_cpp_runner import LlamaCppRunner
 
