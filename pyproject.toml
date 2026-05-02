@@ -41,6 +41,9 @@ dev = [
 Homepage = "https://github.com/polagentbench/polagentbench"
 Repository = "https://github.com/polagentbench/polagentbench"
 
+[project.scripts]
+polagentbench = "polagentbench.cli:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/polagentbench"]
 
