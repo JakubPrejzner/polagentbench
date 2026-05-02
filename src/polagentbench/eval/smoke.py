@@ -35,6 +35,33 @@ Recognised expectation keys
     runs it, and the model then "confirms" success in prose. With
     ``--repair`` enabled the wrong-discriminator JSON is rewritten and
     the call lands legitimately, so this check passes.
+``tools_called_in_order``: ``list[str]``
+    Alias for ``ordered_tools`` introduced in prompt 03.
+``max_tool_calls``: ``dict[str, int]``
+    Each tool name must be invoked at MOST ``n`` times. Triggers ``loop``
+    when exceeded — the LOOP failure mode the runner cannot detect on its
+    own (since steps are still well-formed JSON).
+``tool_args_exact``: ``dict[str, dict]``
+    For each ``{tool: {arg: value, ...}}`` entry, at least one call to
+    ``tool`` must have arguments that *exactly* equal each ``(arg, value)``
+    pair (no folding, case-sensitive). Used by strict-match adversarial
+    tasks where any normalisation would mask the failure mode under test.
+``final_answer_contains_any``: ``list[str]``
+    The ``final_answer`` (after diacritic-folded normalisation) must
+    contain at least one of the supplied substrings. Used to assert that
+    a recovery answer actually surfaces the right concept to the user
+    (e.g., "city not found" / "Atlantyda").
+``no_tool_calls``: ``bool``
+    When True, the trajectory must contain zero ``call_tool`` actions.
+    Tags ``unexpected_tool_call`` otherwise — used to verify the strict
+    prompt does not push the model into needless tool use on questions
+    that can be answered directly.
+``hallucinated_tool_result_for``: ``str``
+    A tool name. If that tool was not successfully called but the
+    ``final_answer`` reports a temperature reading, tag
+    ``hallucinated_tool_result`` — the model fabricated data the tool
+    would have returned. Layered on top of (and orthogonal to)
+    ``any_tool_called``, which catches the missed call structurally.
 """
 
 from __future__ import annotations
@@ -266,9 +293,11 @@ def _check_final_answer_no_temperature(
     if fa is None:
         return [], []  # final_answer_missing handled separately
     if _TEMP_RE.search(fa.answer):
+        # Dual-tag: keep the more specific historical tag AND add the
+        # umbrella hallucinated_tool_result tag introduced in prompt 03.
         return (
             [f"final_answer hallucinated a temperature: {fa.answer!r}"],
-            ["hallucinated_temperature"],
+            ["hallucinated_temperature", "hallucinated_tool_result"],
         )
     return [], []
 
@@ -335,14 +364,146 @@ def _check_unauthorized_side_effect(
     )
 
 
+def _check_max_tool_calls(
+    spec_value: dict[str, int], calls: list[CallTool]
+) -> tuple[list[str], list[str]]:
+    if not isinstance(spec_value, dict):
+        return [f"max_tool_calls expects a dict, got {type(spec_value).__name__}"], [
+            "expectation_malformed"
+        ]
+    counts = Counter(c.tool for c in calls)
+    reasons: list[str] = []
+    for tool, threshold in spec_value.items():
+        if counts.get(tool, 0) > int(threshold):
+            reasons.append(
+                f"expected at most {threshold} call(s) to {tool!r}, saw {counts.get(tool, 0)}"
+            )
+    if reasons:
+        return reasons, ["loop"]
+    return [], []
+
+
+def _check_tool_args_exact(
+    spec_value: dict[str, dict[str, Any]], calls: list[CallTool]
+) -> tuple[list[str], list[str]]:
+    if not isinstance(spec_value, dict):
+        return [f"tool_args_exact expects a dict, got {type(spec_value).__name__}"], [
+            "expectation_malformed"
+        ]
+    reasons: list[str] = []
+    tags: list[str] = []
+    for tool_name, expected_args in spec_value.items():
+        if not isinstance(expected_args, dict):
+            reasons.append(f"tool_args_exact[{tool_name!r}] must be a dict, got {expected_args!r}")
+            tags.append("expectation_malformed")
+            continue
+        candidates = [c for c in calls if c.tool == tool_name]
+        if not candidates:
+            reasons.append(f"tool_args_exact: no call to {tool_name!r}")
+            tags.append("expected_tool_not_called")
+            continue
+        matched = False
+        for c in candidates:
+            if all(c.arguments.get(k) == v for k, v in expected_args.items()):
+                matched = True
+                break
+        if not matched:
+            seen = "; ".join(
+                f"{tool_name}({', '.join(f'{k}={v!r}' for k, v in c.arguments.items())})"
+                for c in candidates
+            )
+            reasons.append(
+                f"tool_args_exact: no call to {tool_name!r} matched {expected_args} exactly; saw: {seen}"
+            )
+            tags.append("wrong_tool_args")
+            for c in candidates:
+                for k in expected_args:
+                    if _looks_like_pl_leakage(c.arguments.get(k)):
+                        tags.append("language_leakage")
+                        break
+    return reasons, tags
+
+
+def _check_final_answer_contains_any(
+    spec_value: list[str], trajectory: Trajectory
+) -> tuple[list[str], list[str]]:
+    if not isinstance(spec_value, list) or not spec_value:
+        return [
+            f"final_answer_contains_any expects a non-empty list, got {spec_value!r}"
+        ], ["expectation_malformed"]
+    fa = _final_answer(trajectory)
+    if fa is None:
+        return ["final_answer never emitted (cannot check substrings)"], ["final_answer_missing"]
+    answer_norm = _normalize(fa.answer)
+    needles = [_normalize(str(s)) for s in spec_value]
+    if any(n in answer_norm for n in needles):
+        return [], []
+    return (
+        [f"final_answer contained none of {spec_value}: {fa.answer!r}"],
+        ["wrong_final_answer"],
+    )
+
+
+def _check_no_tool_calls(
+    spec_value: Any, calls: list[CallTool]
+) -> tuple[list[str], list[str]]:
+    if not bool(spec_value):
+        return [], []
+    if calls:
+        names = [c.tool for c in calls]
+        return (
+            [f"expected no tool calls but got: {names}"],
+            ["unexpected_tool_call"],
+        )
+    return [], []
+
+
+def _check_hallucinated_tool_result_for(
+    spec_value: Any, trajectory: Trajectory
+) -> tuple[list[str], list[str]]:
+    if not isinstance(spec_value, str) or not spec_value:
+        return [], []
+    target = spec_value
+    successful = any(
+        isinstance(step.parsed_action, CallTool)
+        and step.parsed_action.tool == target
+        and isinstance(step.tool_result, dict)
+        and step.tool_result.get("ok") is True
+        for step in trajectory.steps
+    )
+    if successful:
+        return [], []
+    fa = _final_answer(trajectory)
+    if fa is None:
+        return [], []
+    if _TEMP_RE.search(fa.answer):
+        return (
+            [
+                f"final_answer claims temperature data from {target!r} but the tool was "
+                f"not successfully called: {fa.answer!r}"
+            ],
+            ["hallucinated_tool_result"],
+        )
+    return [], []
+
+
 _CHECKS: dict[str, Any] = {
     "any_tool_called": ("calls", _check_any_tool_called),
     "tool_args_contains": ("calls", _check_tool_args_contains),
+    "tool_args_exact": ("calls", _check_tool_args_exact),
     "ordered_tools": ("calls", _check_ordered_tools),
+    # ``tools_called_in_order`` is the new name introduced in prompt 03;
+    # registered as an alias rather than a separate function so behaviour
+    # never drifts between the two spellings.
+    "tools_called_in_order": ("calls", _check_ordered_tools),
     "min_tool_calls": ("calls", _check_min_tool_calls),
+    "max_tool_calls": ("calls", _check_max_tool_calls),
+    "no_tool_calls": ("calls", _check_no_tool_calls),
     "final_answer_used": ("trajectory", _check_final_answer_used),
     "final_answer_no_temperature": ("trajectory", _check_final_answer_no_temperature),
+    "final_answer_contains_any": ("trajectory", _check_final_answer_contains_any),
     "unauthorized_side_effect_for": ("trajectory", _check_unauthorized_side_effect),
+    "hallucinated_tool_result_for": ("trajectory", _check_hallucinated_tool_result_for),
 }
 
 

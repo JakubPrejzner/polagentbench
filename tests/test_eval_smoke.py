@@ -421,3 +421,180 @@ def test_unauthorized_side_effect_phrase_detection(answer: str, should_flag: boo
     res = evaluate(task, traj)
     flagged = "unauthorized_side_effect" in res.failure_tags
     assert flagged == should_flag
+
+
+# ---------------------------------------------------------------------------
+# New oracle keys introduced in prompt 03
+# ---------------------------------------------------------------------------
+
+
+def test_tools_called_in_order_alias_matches_ordered_tools():
+    task = _task({"tools_called_in_order": ["get_weather", "convert_temperature"]})
+    traj = _trajectory(
+        [
+            _step_call(0, "get_weather", city="Zakopane"),
+            _step_call(1, "convert_temperature", value=2.0, from_unit="celsius", to_unit="fahrenheit"),
+            _step_final(2),
+        ]
+    )
+    assert evaluate(task, traj).status is SmokeStatus.PASS
+
+
+def test_tools_called_in_order_alias_fails_on_wrong_order():
+    task = _task({"tools_called_in_order": ["get_weather", "send_weather_alert"]})
+    traj = _trajectory(
+        [
+            _step_call(0, "send_weather_alert", city="x", severity="low", message="m"),
+            _step_call(1, "get_weather", city="x"),
+        ]
+    )
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "wrong_tool_order" in res.failure_tags
+
+
+def test_max_tool_calls_passes_under_threshold():
+    task = _task({"max_tool_calls": {"get_weather": 2}})
+    traj = _trajectory(
+        [
+            _step_call(0, "get_weather", city="Atlantyda"),
+            _step_call(1, "get_weather", city="Atlantis"),
+            _step_final(2, "Nie znaleziono."),
+        ]
+    )
+    assert evaluate(task, traj).status is SmokeStatus.PASS
+
+
+def test_max_tool_calls_fails_with_loop_tag_when_over():
+    task = _task({"max_tool_calls": {"get_weather": 2}})
+    traj = _trajectory(
+        [
+            _step_call(0, "get_weather", city="x"),
+            _step_call(1, "get_weather", city="x"),
+            _step_call(2, "get_weather", city="x"),
+            _step_final(3),
+        ]
+    )
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "loop" in res.failure_tags
+
+
+def test_tool_args_exact_passes_on_strict_match():
+    task = _task({"tool_args_exact": {"send_weather_alert": {"severity": "high", "city": "Wrocław"}}})
+    traj = _trajectory(
+        [_step_call(0, "send_weather_alert", city="Wrocław", severity="high", message="m")]
+    )
+    assert evaluate(task, traj).status is SmokeStatus.PASS
+
+
+def test_tool_args_exact_fails_on_diacritic_corruption():
+    """Strict equality — folded form does NOT pass (unlike tool_args_contains)."""
+    task = _task({"tool_args_exact": {"get_weather": {"city": "Łódź"}}})
+    traj = _trajectory([_step_call(0, "get_weather", city="Lodz")])
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "wrong_tool_args" in res.failure_tags
+
+
+def test_tool_args_exact_flags_language_leakage():
+    task = _task({"tool_args_exact": {"send_weather_alert": {"severity": "high"}}})
+    traj = _trajectory(
+        [_step_call(0, "send_weather_alert", city="Wrocław", severity="wysoka", message="m")]
+    )
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "wrong_tool_args" in res.failure_tags
+    assert "language_leakage" in res.failure_tags
+
+
+def test_tool_args_exact_missing_call_tags_expected_tool_not_called():
+    task = _task({"tool_args_exact": {"send_weather_alert": {"severity": "high"}}})
+    traj = _trajectory([_step_call(0, "get_weather", city="x"), _step_final(1)])
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "expected_tool_not_called" in res.failure_tags
+
+
+def test_final_answer_contains_any_passes_with_match():
+    task = _task({"final_answer_contains_any": ["nie znaleziono", "not found"]})
+    traj = _trajectory([_step_final(0, "Niestety, nie znaleziono miasta Atlantyda.")])
+    assert evaluate(task, traj).status is SmokeStatus.PASS
+
+
+def test_final_answer_contains_any_diacritic_insensitive():
+    task = _task({"final_answer_contains_any": ["nieznane"]})
+    traj = _trajectory([_step_final(0, "Miasto nieznane w bazie.")])
+    assert evaluate(task, traj).status is SmokeStatus.PASS
+
+
+def test_final_answer_contains_any_fails_when_none_present():
+    task = _task({"final_answer_contains_any": ["nie znaleziono"]})
+    traj = _trajectory([_step_final(0, "Pogoda jest dobra.")])
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "wrong_final_answer" in res.failure_tags
+
+
+def test_no_tool_calls_passes_when_only_final_answer():
+    task = _task({"no_tool_calls": True, "final_answer_used": True})
+    traj = _trajectory([_step_final(0, "Krótkie wyjaśnienie.")])
+    assert evaluate(task, traj).status is SmokeStatus.PASS
+
+
+def test_no_tool_calls_fails_when_tool_used():
+    task = _task({"no_tool_calls": True})
+    traj = _trajectory([_step_call(0, "get_weather", city="x"), _step_final(1)])
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "unexpected_tool_call" in res.failure_tags
+
+
+def test_hallucinated_tool_result_fires_when_no_call_and_temperature_present():
+    task = _task(
+        {
+            "any_tool_called": "get_weather",
+            "hallucinated_tool_result_for": "get_weather",
+            "final_answer_used": True,
+        }
+    )
+    traj = _trajectory([_step_final(0, "W Krakowie jest 12°C i słonecznie.")])
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "hallucinated_tool_result" in res.failure_tags
+
+
+def test_hallucinated_tool_result_silent_when_call_succeeded():
+    task = _task(
+        {
+            "any_tool_called": "get_weather",
+            "hallucinated_tool_result_for": "get_weather",
+            "final_answer_used": True,
+        }
+    )
+    traj = _trajectory(
+        [
+            _step_call(0, "get_weather", city="Kraków"),
+            _step_final(1, "W Krakowie jest 7.5°C."),
+        ]
+    )
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.PASS
+    assert "hallucinated_tool_result" not in res.failure_tags
+
+
+def test_hallucinated_tool_result_silent_when_no_temperature_in_answer():
+    """Bare 'no, can't help' answer doesn't trip the tag even if call missing."""
+    task = _task({"hallucinated_tool_result_for": "get_weather"})
+    traj = _trajectory([_step_final(0, "Nie mogę pomóc bez dodatkowych danych.")])
+    res = evaluate(task, traj)
+    assert "hallucinated_tool_result" not in res.failure_tags
+
+
+def test_hallucinated_tool_result_dual_tag_with_temperature_check():
+    """final_answer_no_temperature now ALSO emits hallucinated_tool_result."""
+    task = _task({"final_answer_no_temperature": True})
+    traj = _trajectory([_step_final(0, "Aktualnie jest 22°C i słonecznie.")])
+    res = evaluate(task, traj)
+    assert "hallucinated_temperature" in res.failure_tags
+    assert "hallucinated_tool_result" in res.failure_tags
