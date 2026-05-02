@@ -1,0 +1,36 @@
+# Minimal example task used to validate the YAML schema and the loader.
+# Real benchmark tasks live alongside this directory and are added in later
+# prompts; this one exists purely to exercise the pipeline end-to-end.
+
+id: dummy_001
+category: TOOL_SELECTION
+language_variant: PL_EN
+prompt: "Sprawdź pogodę w Krakowie."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city:
+          type: string
+      required:
+        - city
+  - name: send_email
+    description: "Send an email to a recipient."
+    parameters:
+      type: object
+      properties:
+        to:
+          type: string
+        body:
+          type: string
+      required:
+        - to
+        - body
+initial_state_path: states/empty.json
+expected_final_state:
+  last_tool_called: get_weather
+max_steps: 3
+constraints:
+  - "Use only one tool call."
