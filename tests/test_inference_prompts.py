@@ -44,11 +44,30 @@ def test_pl_prompt_includes_both_action_examples():
     assert '"action": "final_answer"' in prompt
 
 
-def test_pl_prompt_contains_polish_text():
+def test_pl_prompt_contains_strict_uppercase_rule():
     prompt = build_system_prompt(WEATHER_TOOLS, language="pl")
-    # Spot-check for the rule about emitting JSON only in Polish.
-    assert "Wypisz" in prompt or "wypisz" in prompt
-    assert "JSON" in prompt
+    assert "KAŻDA TWOJA ODPOWIEDŹ MUSI BYĆ JEDNYM OBIEKTEM JSON" in prompt
+    # The uppercase NIGDY repetitions are part of the strictness signal.
+    assert "NIGDY" in prompt
+
+
+def test_pl_prompt_includes_two_turn_walkthrough():
+    prompt = build_system_prompt(WEATHER_TOOLS, language="pl")
+    assert "Przykład pełnej trajektorii" in prompt
+    assert "Asystent (tura 1)" in prompt
+    assert "Asystent (tura 2 - finalna)" in prompt
+    # The walkthrough must include a tool_result line so the model sees the
+    # exact "JSON-after-tool-result" pattern, not just two unrelated turns.
+    assert "<tool_result tool=" in prompt
+    assert '"final_answer"' in prompt
+
+
+def test_pl_prompt_includes_forbidden_patterns_section():
+    prompt = build_system_prompt(WEATHER_TOOLS, language="pl")
+    assert "ZABRONIONE" in prompt
+    assert "DOZWOLONE" in prompt
+    assert "proza" in prompt
+    assert "markdown" in prompt
 
 
 def test_en_prompt_contains_english_text():
@@ -58,6 +77,13 @@ def test_en_prompt_contains_english_text():
     assert "get_weather" in prompt
 
 
+def test_en_prompt_mirrors_strict_structure():
+    prompt = build_system_prompt(WEATHER_TOOLS, language="en")
+    assert "EVERY RESPONSE MUST BE A SINGLE JSON OBJECT" in prompt
+    assert "FORBIDDEN" in prompt
+    assert "Example trajectory" in prompt
+
+
 def test_prompt_mentions_max_steps():
     prompt = build_system_prompt(WEATHER_TOOLS, language="pl", max_steps=11)
     assert "11" in prompt
@@ -65,8 +91,9 @@ def test_prompt_mentions_max_steps():
 
 def test_prompt_under_token_budget():
     prompt = build_system_prompt(WEATHER_TOOLS, language="pl")
-    # Loose 4-chars-per-token estimate; 800 tokens -> ~3200 chars.
-    assert len(prompt) < 3200
+    # 1500 tokens at the conventional 4-chars-per-token estimate -> 6000 chars.
+    estimated_tokens = len(prompt) // 4
+    assert estimated_tokens < 1500, f"prompt is {estimated_tokens} tokens (limit 1500)"
 
 
 def test_unsupported_language_raises():
