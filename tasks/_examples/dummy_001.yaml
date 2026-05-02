@@ -4,6 +4,7 @@
 
 id: dummy_001
 category: TOOL_SELECTION
+environment: weather
 language_variant: PL_EN
 prompt: "Sprawdź pogodę w Krakowie."
 available_tools:

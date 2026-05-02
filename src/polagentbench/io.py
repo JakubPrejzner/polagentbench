@@ -43,7 +43,13 @@ def load_task(path: Path) -> Task:
     if not isinstance(data, dict):
         raise ValueError(f"Task file {path} must contain a YAML mapping at the top level.")
 
-    return Task.model_validate(data)
+    if "source_path" in data:
+        raise ValueError(
+            f"Task file {path} sets source_path; this field is reserved and populated by the loader."
+        )
+
+    task = Task.model_validate(data)
+    return task.model_copy(update={"source_path": path.resolve()})
 
 
 def load_all_tasks(directory: Path) -> list[Task]:

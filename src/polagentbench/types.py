@@ -89,6 +89,10 @@ class Task(BaseModel):
 
     id: str = Field(min_length=1, description="Unique task identifier.")
     category: TaskCategory
+    environment: str = Field(
+        min_length=1,
+        description="Name of the Environment registered with the runner that this task targets.",
+    )
     language_variant: InterfaceVariant
     prompt: str = Field(min_length=1, description="User-facing prompt shown to the model.")
     available_tools: list[dict[str, Any]] = Field(
@@ -106,6 +110,14 @@ class Task(BaseModel):
     constraints: list[str] = Field(
         default_factory=list,
         description="Free-form natural-language constraints. Used by the constraint evaluator.",
+    )
+    source_path: Path | None = Field(
+        default=None,
+        description=(
+            "Absolute path to the YAML this task was loaded from. Populated by load_task; "
+            "left None when the task is constructed in memory. Used to resolve "
+            "initial_state_path."
+        ),
     )
 
 

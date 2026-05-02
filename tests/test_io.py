@@ -17,10 +17,37 @@ def test_dummy_task_loads_successfully():
     task = load_task(DUMMY_TASK_PATH)
     assert task.id == "dummy_001"
     assert task.category is TaskCategory.TOOL_SELECTION
+    assert task.environment == "weather"
     assert task.language_variant is InterfaceVariant.PL_EN
     assert task.prompt == "Sprawdź pogodę w Krakowie."
     assert task.max_steps == 3
     assert task.constraints == ["Use only one tool call."]
+
+
+def test_load_task_sets_source_path():
+    task = load_task(DUMMY_TASK_PATH)
+    assert task.source_path is not None
+    assert task.source_path == DUMMY_TASK_PATH.resolve()
+
+
+def test_load_task_rejects_yaml_setting_source_path(tmp_path):
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(
+        "id: bad\n"
+        "category: TOOL_SELECTION\n"
+        "environment: weather\n"
+        "language_variant: EN_EN\n"
+        "prompt: hello\n"
+        "available_tools: []\n"
+        "initial_state_path: states/empty.json\n"
+        "expected_final_state: {}\n"
+        "source_path: /tmp/forged.yaml\n",
+        encoding="utf-8",
+    )
+    import pytest
+
+    with pytest.raises(ValueError):
+        load_task(bad)
 
 
 def test_dummy_task_tool_schemas_preserved():
@@ -49,6 +76,7 @@ def test_load_task_rejects_extra_fields(tmp_path: Path):
     bad.write_text(
         "id: bad\n"
         "category: TOOL_SELECTION\n"
+        "environment: weather\n"
         "language_variant: EN_EN\n"
         "prompt: hello\n"
         "available_tools: []\n"
