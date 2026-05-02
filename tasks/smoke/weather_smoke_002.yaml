@@ -1,0 +1,63 @@
+# Smoke task 2/5: diacritic-stress.
+#
+# Two cities whose names rely on Polish diacritics that quantized models
+# routinely drop. The smoke evaluator accepts the diacritic-stripped form
+# (the env normalises Lodz -> Łódź) — strict matching arrives in prompt 04.
+# Verifies the agent can issue *multiple* tool calls in one trajectory.
+
+id: weather_smoke_002
+category: TOOL_SELECTION
+environment: weather
+language_variant: PL_EN
+prompt: "Sprawdź pogodę w Łodzi i Świnoujściu i krótko podsumuj."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  any_tool_called: get_weather
+  min_tool_calls:
+    get_weather: 2
+  final_answer_used: true
+max_steps: 5
+constraints:
+  - "Look up each city exactly once."

@@ -1,0 +1,66 @@
+# Smoke task 4/5: multi-step composition.
+#
+# Two-step plan: look up the weather, then convert the returned temperature
+# to Fahrenheit. Tests whether the agent can carry a value from one tool
+# call into the next, and whether it correctly uses English enum values
+# ("celsius"/"fahrenheit") for the unit fields.
+
+id: weather_smoke_004
+category: TOOL_SELECTION
+environment: weather
+language_variant: PL_EN
+prompt: "Sprawdź pogodę w Zakopanem, a następnie przelicz tę temperaturę na stopnie Fahrenheita i podaj wynik."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  ordered_tools:
+    - get_weather
+    - convert_temperature
+  tool_args_contains:
+    from_unit: "celsius"
+    to_unit: "fahrenheit"
+  final_answer_used: true
+max_steps: 5
+constraints:
+  - "Use convert_temperature on the value returned by get_weather."

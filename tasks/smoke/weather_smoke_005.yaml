@@ -1,0 +1,64 @@
+# Smoke task 5/5: graceful failure on missing data.
+#
+# "Atlantis" is deliberately not in the city database. The agent should
+# call get_weather, observe CITY_NOT_FOUND, and emit a final_answer that
+# tells the user the city wasn't found — rather than hallucinating a
+# temperature. The final_answer_no_temperature check enforces the latter.
+
+id: weather_smoke_005
+category: TOOL_SELECTION
+environment: weather
+language_variant: PL_EN
+prompt: "Jaka jest aktualna pogoda w Atlantis?"
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  any_tool_called: get_weather
+  tool_args_contains:
+    city: "Atlantis"
+  final_answer_used: true
+  final_answer_no_temperature: true
+max_steps: 4
+constraints:
+  - "If the city is unknown, say so in final_answer; do not invent values."
