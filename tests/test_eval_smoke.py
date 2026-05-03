@@ -598,3 +598,49 @@ def test_hallucinated_tool_result_dual_tag_with_temperature_check():
     res = evaluate(task, traj)
     assert "hallucinated_temperature" in res.failure_tags
     assert "hallucinated_tool_result" in res.failure_tags
+
+
+def test_all_tool_calls_succeeded_passes_when_all_ok():
+    task = _task({"all_tool_calls_succeeded": True})
+    traj = _trajectory(
+        [
+            _step_call(0, "get_weather", city="Świnoujście"),
+            _step_call(1, "get_weather", city="Żory"),
+            _step_final(2),
+        ]
+    )
+    assert evaluate(task, traj).status is SmokeStatus.PASS
+
+
+def test_all_tool_calls_succeeded_fails_on_any_tool_error():
+    task = _task({"all_tool_calls_succeeded": True})
+    bad = TrajectoryStep(
+        step_idx=0,
+        raw_model_output="<canned>",
+        parsed_action=CallTool(action="call_tool", tool="get_weather", arguments={"city": "Lodz"}),
+        parse_error=None,
+        tool_result={"ok": False, "error": "x", "error_code": "CITY_NOT_FOUND"},
+        state_after={},
+        latency_ms=1.0,
+    )
+    traj = _trajectory([bad, _step_final(1)])
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "tool_call_error" in res.failure_tags
+
+
+def test_all_tool_calls_succeeded_off_by_default():
+    """Spec value False = no-op (does not flag even if calls fail)."""
+    task = _task({"all_tool_calls_succeeded": False, "final_answer_used": True})
+    bad = TrajectoryStep(
+        step_idx=0,
+        raw_model_output="<canned>",
+        parsed_action=CallTool(action="call_tool", tool="get_weather", arguments={"city": "Lodz"}),
+        parse_error=None,
+        tool_result={"ok": False, "error": "x", "error_code": "CITY_NOT_FOUND"},
+        state_after={},
+        latency_ms=1.0,
+    )
+    traj = _trajectory([bad, _step_final(1)])
+    res = evaluate(task, traj)
+    assert "tool_call_error" not in res.failure_tags

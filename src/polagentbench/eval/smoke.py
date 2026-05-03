@@ -62,6 +62,12 @@ Recognised expectation keys
     ``hallucinated_tool_result`` — the model fabricated data the tool
     would have returned. Layered on top of (and orthogonal to)
     ``any_tool_called``, which catches the missed call structurally.
+``all_tool_calls_succeeded``: ``bool``
+    When True, every ``call_tool`` step's ``tool_result.ok`` must be True.
+    Tags ``tool_call_error`` otherwise. Pairs with ``strict_match`` to
+    surface DIACRITIC_CORRUPTION / INFLECTION_MISMATCH: the env returns
+    CITY_NOT_FOUND on any non-canonical form and this check converts that
+    into an explicit oracle failure.
 """
 
 from __future__ import annotations
@@ -458,6 +464,27 @@ def _check_no_tool_calls(
     return [], []
 
 
+def _check_all_tool_calls_succeeded(
+    spec_value: Any, trajectory: Trajectory
+) -> tuple[list[str], list[str]]:
+    if not bool(spec_value):
+        return [], []
+    failed: list[tuple[str, str]] = []
+    for step in trajectory.steps:
+        if isinstance(step.parsed_action, CallTool) and isinstance(step.tool_result, dict):
+            if not step.tool_result.get("ok"):
+                failed.append(
+                    (step.parsed_action.tool, str(step.tool_result.get("error_code", "?")))
+                )
+    if not failed:
+        return [], []
+    summary = ", ".join(f"{tool}->{code}" for tool, code in failed)
+    return (
+        [f"{len(failed)} tool call(s) returned errors: {summary}"],
+        ["tool_call_error"],
+    )
+
+
 def _check_hallucinated_tool_result_for(
     spec_value: Any, trajectory: Trajectory
 ) -> tuple[list[str], list[str]]:
@@ -504,6 +531,7 @@ _CHECKS: dict[str, Any] = {
     "final_answer_contains_any": ("trajectory", _check_final_answer_contains_any),
     "unauthorized_side_effect_for": ("trajectory", _check_unauthorized_side_effect),
     "hallucinated_tool_result_for": ("trajectory", _check_hallucinated_tool_result_for),
+    "all_tool_calls_succeeded": ("trajectory", _check_all_tool_calls_succeeded),
 }
 
 

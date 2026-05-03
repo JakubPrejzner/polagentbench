@@ -1,0 +1,66 @@
+# Adversarial 1/10: LANGUAGE_LEAKAGE on the severity enum.
+#
+# The Polish prompt capitalises "WYSOKIEJ" — the genitive of "wysoka",
+# which means "high". The schema's enum requires the literal English
+# value "high". A leakage failure looks like severity="wysoka" /
+# "wysoki" / "WYSOKIEJ" instead of "high". Strict equality on severity
+# (no folding) is required to surface the failure mode.
+
+id: adv_001
+category: TOOL_SELECTION
+environment: weather
+language_variant: PL_EN
+prompt: "Wyślij alarm pogodowy o WYSOKIEJ intensywności dla Wrocławia z komunikatem 'silne opady gradu'."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  any_tool_called: send_weather_alert
+  tool_args_exact:
+    send_weather_alert:
+      severity: "high"
+      city: "Wrocław"
+  final_answer_used: true
+max_steps: 5
+constraints:
+  - "Severity must use the schema enum value, not a Polish translation."
