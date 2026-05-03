@@ -86,9 +86,11 @@ from ..types import Task, Trajectory
 __all__ = [
     "SmokeResult",
     "SmokeStatus",
+    "aggregate_grid_summary",
     "aggregate_summary",
     "evaluate",
     "format_console_report",
+    "format_grid_report",
 ]
 
 
@@ -682,4 +684,237 @@ def format_console_report(
     if failure_tag_counts:
         body = ", ".join(f"{k}: {v}" for k, v in sorted(failure_tag_counts.items()))
         lines.append(f"Failure tags: {{{body}}}")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Multi-condition grid: temperature x seed x task
+# ---------------------------------------------------------------------------
+
+
+def aggregate_grid_summary(
+    cells: list[dict[str, Any]],
+    *,
+    model_id: str,
+    quant_label: str,
+    repair: bool,
+    temperatures: list[float],
+    seeds: list[int],
+    task_ids: list[str],
+) -> dict[str, Any]:
+    """Build the summary.json payload for a multi-condition adversarial run.
+
+    Each entry in ``cells`` represents one (temperature, seed, task) cell:
+    ``{"temperature": float, "seed": int, "task_id": str, "passed": bool,
+       "status": str, "failure_tags": list[str], "latency_ms": float,
+       "repair_applied_steps": int, "trajectory_summary": str}``.
+
+    The summary aggregates these along three axes:
+
+    * ``conditions``: one entry per (temperature, seed); each lists pass/fail
+      per task plus a per-condition pass rate.
+    * ``aggregate.by_temperature``: pass-rate mean and 95% bootstrap CI per
+      temperature value, averaged across seeds and tasks.
+    * ``aggregate.by_failure_tag``: total tag occurrences across the grid.
+    * ``aggregate.overall``: pass-rate mean and CI across every cell.
+    """
+    from .stats import bootstrap_ci
+
+    conditions: list[dict[str, Any]] = []
+    by_cond: dict[tuple[float, int], list[dict[str, Any]]] = {}
+    for c in cells:
+        by_cond.setdefault((float(c["temperature"]), int(c["seed"])), []).append(c)
+
+    for temp in temperatures:
+        for seed in seeds:
+            entries = by_cond.get((float(temp), int(seed)), [])
+            entry_by_task = {e["task_id"]: e for e in entries}
+            task_results = [
+                {
+                    "task_id": tid,
+                    "status": entry_by_task[tid]["status"]
+                    if tid in entry_by_task
+                    else "MISSING",
+                    "failure_tags": entry_by_task[tid].get("failure_tags", [])
+                    if tid in entry_by_task
+                    else ["missing_cell"],
+                    "trajectory_summary": entry_by_task[tid].get("trajectory_summary", "")
+                    if tid in entry_by_task
+                    else "",
+                }
+                for tid in task_ids
+            ]
+            passed = sum(1 for tr in task_results if tr["status"] == "PASS")
+            total = len(task_results)
+            conditions.append(
+                {
+                    "temperature": float(temp),
+                    "seed": int(seed),
+                    "repair": repair,
+                    "passed": passed,
+                    "total": total,
+                    "pass_rate": round(passed / total, 4) if total else 0.0,
+                    "task_results": task_results,
+                }
+            )
+
+    by_temperature: dict[str, dict[str, Any]] = {}
+    for temp in temperatures:
+        flags = [
+            cell["passed"]
+            for cell in cells
+            if float(cell["temperature"]) == float(temp)
+        ]
+        if flags:
+            mean = sum(1 for f in flags if f) / len(flags)
+            lo, hi = bootstrap_ci([bool(f) for f in flags])
+        else:
+            mean, lo, hi = 0.0, 0.0, 0.0
+        by_temperature[f"{float(temp):.1f}"] = {
+            "pass_rate_mean": round(mean, 4),
+            "ci95": [round(lo, 4), round(hi, 4)],
+            "n": len(flags),
+        }
+
+    by_failure_tag: Counter[str] = Counter()
+    for c in cells:
+        by_failure_tag.update(c.get("failure_tags", []))
+
+    all_flags = [bool(c["passed"]) for c in cells]
+    if all_flags:
+        overall_mean = sum(all_flags) / len(all_flags)
+        overall_lo, overall_hi = bootstrap_ci(all_flags)
+    else:
+        overall_mean, overall_lo, overall_hi = 0.0, 0.0, 0.0
+
+    repair_applied_steps = sum(int(c.get("repair_applied_steps", 0)) for c in cells)
+    total_latency_ms = sum(float(c.get("latency_ms", 0.0)) for c in cells)
+
+    return {
+        "model_id": model_id,
+        "quant": quant_label,
+        "repair": repair,
+        "tasks_total": len(task_ids),
+        "temperatures": list(temperatures),
+        "seeds": list(seeds),
+        "conditions": conditions,
+        "aggregate": {
+            "by_temperature": by_temperature,
+            "by_failure_tag": dict(by_failure_tag),
+            "overall": {
+                "pass_rate": round(overall_mean, 4),
+                "ci95": [round(overall_lo, 4), round(overall_hi, 4)],
+                "n": len(all_flags),
+                "repair_applied_steps": repair_applied_steps,
+                "total_latency_ms": round(total_latency_ms, 1),
+            },
+        },
+    }
+
+
+def format_grid_report(
+    summary: dict[str, Any],
+) -> str:
+    """ASCII heatmap: rows=tasks, columns=(temp, seed). Cells are ✓/✗.
+
+    Reads the structure produced by :func:`aggregate_grid_summary`. Adds
+    a per-task pass/N column on the right and per-condition pass/M row
+    along the bottom plus a one-line aggregate summary.
+    """
+    temps: list[float] = list(summary.get("temperatures", []))
+    seeds: list[int] = list(summary.get("seeds", []))
+    tasks: list[str] = []
+    for cond in summary.get("conditions", []):
+        for tr in cond["task_results"]:
+            if tr["task_id"] not in tasks:
+                tasks.append(tr["task_id"])
+
+    # Build cell lookup: (temp, seed, task_id) -> status
+    status_by_cell: dict[tuple[float, int, str], str] = {}
+    for cond in summary.get("conditions", []):
+        for tr in cond["task_results"]:
+            status_by_cell[(float(cond["temperature"]), int(cond["seed"]), tr["task_id"])] = tr[
+                "status"
+            ]
+
+    glyph_for = {"PASS": "✓", "FAIL": "✗", "INCONCLUSIVE": "?", "MISSING": "·"}
+    name_w = max((len(t) for t in tasks), default=10)
+    cell_w = max(3, max(len(str(s)) for s in seeds) + 1) if seeds else 3
+
+    # Header line 1: temperature spans, header line 2: seeds.
+    lines: list[str] = []
+    header = (
+        f"Adversarial grid - {summary.get('model_id', '?')} / "
+        f"{summary.get('quant', '?')} / repair={'on' if summary.get('repair') else 'off'}"
+    )
+    lines.append(header)
+    lines.append("=" * max(60, len(header)))
+
+    temp_header = " " * (name_w + 2)
+    for temp in temps:
+        block_w = cell_w * len(seeds)
+        label = f"T={float(temp):.1f}"
+        temp_header += label.center(block_w)
+        temp_header += " "
+    temp_header += "  pass/N"
+    lines.append(temp_header)
+
+    seed_header = " " * (name_w + 2)
+    for _ in temps:
+        for s in seeds:
+            seed_header += f"s{s}".center(cell_w)
+        seed_header += " "
+    seed_header += "       "
+    lines.append(seed_header)
+
+    n_cells_per_task = len(temps) * len(seeds)
+    per_task_pass: dict[str, int] = {}
+    for tid in tasks:
+        row = tid.ljust(name_w) + "  "
+        passed = 0
+        for temp in temps:
+            for s in seeds:
+                status = status_by_cell.get((float(temp), int(s), tid), "MISSING")
+                if status == "PASS":
+                    passed += 1
+                row += glyph_for.get(status, "?").center(cell_w)
+            row += " "
+        per_task_pass[tid] = passed
+        row += f"  {passed}/{n_cells_per_task}"
+        lines.append(row)
+
+    # Per-condition pass rates row (cells = "p/T").
+    foot = "pass/T".ljust(name_w) + "  "
+    for temp in temps:
+        for s in seeds:
+            cond_passed = sum(
+                1
+                for tid in tasks
+                if status_by_cell.get((float(temp), int(s), tid)) == "PASS"
+            )
+            foot += f"{cond_passed}".center(cell_w)
+        foot += " "
+    foot += f"  {sum(per_task_pass.values())}/{n_cells_per_task * len(tasks)}"
+    lines.append(foot)
+
+    lines.append("")
+    overall = summary.get("aggregate", {}).get("overall", {})
+    lines.append(
+        f"Overall pass rate: {overall.get('pass_rate', 0.0):.3f} "
+        f"(95% CI {overall.get('ci95', [0, 0])[0]:.3f}-{overall.get('ci95', [0, 0])[1]:.3f}, "
+        f"n={overall.get('n', 0)})"
+    )
+    by_temp = summary.get("aggregate", {}).get("by_temperature", {})
+    if by_temp:
+        bits = []
+        for k, v in sorted(by_temp.items(), key=lambda kv: float(kv[0])):
+            bits.append(
+                f"T={k}: {v['pass_rate_mean']:.3f} "
+                f"[{v['ci95'][0]:.3f}-{v['ci95'][1]:.3f}]"
+            )
+        lines.append("By temperature: " + "; ".join(bits))
+    by_tag = summary.get("aggregate", {}).get("by_failure_tag", {})
+    if by_tag:
+        bits = ", ".join(f"{k}={v}" for k, v in sorted(by_tag.items(), key=lambda kv: -kv[1]))
+        lines.append("Failure tags: " + bits)
     return "\n".join(lines)

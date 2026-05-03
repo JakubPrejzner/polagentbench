@@ -19,14 +19,17 @@ import json
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 from .environments.base import Environment
 from .environments.weather import WeatherEnvironment
 from .eval.smoke import (
     SmokeResult,
+    aggregate_grid_summary,
     aggregate_summary,
     evaluate,
     format_console_report,
+    format_grid_report,
 )
 from .io import load_all_tasks, load_task
 from .runner import ModelRunner
@@ -119,6 +122,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="42",
         help="Comma-separated seed list, e.g. '42,43,44'.",
     )
+    suite_p.add_argument(
+        "--temperatures",
+        default=None,
+        help=(
+            "Comma-separated temperature list, e.g. '0.0,0.3,0.7'. When set, "
+            "overrides --temperature and runs the full task x temp x seed grid."
+        ),
+    )
     suite_p.add_argument("--output", type=Path, required=True, help="Output directory.")
 
     return parser
@@ -132,6 +143,18 @@ def _parse_seeds(seeds_str: str) -> list[int]:
         return [int(s) for s in parts]
     except ValueError as exc:
         raise argparse.ArgumentTypeError(f"invalid seed in {seeds_str!r}: {exc}") from exc
+
+
+def _parse_temperatures(temps_str: str) -> list[float]:
+    parts = [s.strip() for s in temps_str.split(",") if s.strip()]
+    if not parts:
+        raise argparse.ArgumentTypeError("at least one temperature is required")
+    try:
+        return [float(s) for s in parts]
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"invalid temperature in {temps_str!r}: {exc}"
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -240,19 +263,104 @@ def _cmd_run_suite(args: argparse.Namespace, runner_factory: RunnerFactory) -> i
         print(f"no tasks found under {args.tasks_dir}", file=sys.stderr)
         return 2
     seeds = _parse_seeds(args.seeds)
+
+    # --temperatures overrides --temperature when supplied. With only the
+    # singular flag, behaviour is unchanged from prompt 02 (single-temp run).
+    if args.temperatures is not None:
+        temperatures = _parse_temperatures(args.temperatures)
+    else:
+        temperatures = [float(args.temperature)]
+
     environments = _build_environments()
     runner = runner_factory(args, environments)
-    _run_suite(
+
+    if len(temperatures) == 1:
+        runner.temperature = temperatures[0]  # type: ignore[attr-defined]
+        _run_suite(
+            tasks=tasks,
+            seeds=seeds,
+            runner=runner,
+            output_dir=args.output,
+            model_id=args.model_id,
+            quant_label=args.quant,
+            repair=args.repair,
+            seed_for_console=seeds[0] if len(seeds) == 1 else None,
+        )
+        return 0
+
+    _run_grid(
         tasks=tasks,
+        temperatures=temperatures,
         seeds=seeds,
         runner=runner,
         output_dir=args.output,
         model_id=args.model_id,
         quant_label=args.quant,
         repair=args.repair,
-        seed_for_console=seeds[0] if len(seeds) == 1 else None,
     )
     return 0
+
+
+def _run_grid(
+    tasks: list[Task],
+    temperatures: Sequence[float],
+    seeds: Sequence[int],
+    runner: ModelRunner,
+    output_dir: Path,
+    *,
+    model_id: str,
+    quant_label: str,
+    repair: bool,
+) -> None:
+    """Drive the (temperature, seed, task) cartesian product of trajectories.
+
+    Mutates ``runner.temperature`` between conditions so a single loaded
+    model serves the whole grid — re-loading the GGUF per temperature
+    would dominate wall time.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    trajectories_path = output_dir / "trajectories.jsonl"
+    summary_path = output_dir / "summary.json"
+
+    cells: list[dict[str, Any]] = []
+    task_ids = [t.id for t in tasks]
+
+    with trajectories_path.open("w", encoding="utf-8") as fh:
+        for temperature in temperatures:
+            runner.temperature = float(temperature)  # type: ignore[attr-defined]
+            for seed in seeds:
+                for task in tasks:
+                    trajectory = runner.run_task(task, seed)
+                    fh.write(trajectory.model_dump_json() + "\n")
+                    fh.flush()
+                    result = evaluate(task, trajectory)
+                    cells.append(
+                        {
+                            "temperature": float(temperature),
+                            "seed": int(seed),
+                            "task_id": task.id,
+                            "passed": result.status.value == "PASS",
+                            "status": result.status.value,
+                            "failure_tags": list(dict.fromkeys(result.failure_tags)),
+                            "trajectory_summary": result.trajectory_summary,
+                            "latency_ms": float(trajectory.total_latency_ms),
+                            "repair_applied_steps": sum(
+                                1 for s in trajectory.steps if s.repair_applied
+                            ),
+                        }
+                    )
+
+    summary = aggregate_grid_summary(
+        cells,
+        model_id=model_id,
+        quant_label=quant_label,
+        repair=repair,
+        temperatures=list(temperatures),
+        seeds=list(seeds),
+        task_ids=task_ids,
+    )
+    summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(format_grid_report(summary))
 
 
 # ---------------------------------------------------------------------------

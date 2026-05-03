@@ -217,3 +217,12 @@ class Trajectory(BaseModel):
     )
     total_latency_ms: float = Field(ge=0.0, default=0.0)
     total_tokens: int = Field(ge=0, default=0)
+    temperature: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Sampling temperature this trajectory was produced at. Defaults to 0.0 "
+            "for backward-compatibility with trajectories written before the "
+            "multi-temperature sweep was added."
+        ),
+    )

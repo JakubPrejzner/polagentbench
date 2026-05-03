@@ -334,3 +334,213 @@ def test_repair_flag_default_off(tmp_path: Path):
     assert rc == 0
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     assert summary["repair"] is False
+
+
+# ---------------------------------------------------------------------------
+# Multi-temperature grid (prompt 03 additions)
+# ---------------------------------------------------------------------------
+
+
+class _TempAwareRunner(_ScriptedRunner):
+    """ScriptedRunner that records per-call temperature so we can assert
+    the grid path actually mutates the runner between conditions."""
+
+    temperature: float = 0.0
+
+    def __init__(self, scenarios, **kw):
+        super().__init__(scenarios, **kw)
+        self.temperatures_seen: list[float] = []
+
+    def run_task(self, task, seed):
+        self.temperatures_seen.append(float(self.temperature))
+        return super().run_task(task, seed)
+
+
+def test_parse_temperatures_helper():
+    import argparse
+
+    assert cli._parse_temperatures("0.0") == [0.0]
+    assert cli._parse_temperatures("0.0, 0.3 ,0.7") == [0.0, 0.3, 0.7]
+    with pytest.raises(argparse.ArgumentTypeError):
+        cli._parse_temperatures("")
+    with pytest.raises(argparse.ArgumentTypeError):
+        cli._parse_temperatures("hot")
+
+
+def test_run_suite_grid_executes_full_cartesian_product(tmp_path: Path):
+    runner = _TempAwareRunner({f"adv_{n:03d}": "pass" for n in range(1, 11)})
+    adv_dir = REPO_ROOT / "tasks" / "adversarial"
+    rc = cli.main(
+        [
+            "run-suite",
+            "--model-path",
+            "x.gguf",
+            "--model-id",
+            "fake-m",
+            "--quant",
+            "Q8_0",
+            "--tasks-dir",
+            str(adv_dir),
+            "--seeds",
+            "42,43,44",
+            "--temperatures",
+            "0.0,0.3,0.7",
+            "--output",
+            str(tmp_path),
+        ],
+        runner_factory=_factory(runner),
+    )
+    assert rc == 0
+    # 10 tasks x 3 seeds x 3 temps = 90 trajectories
+    assert len(runner.run_log) == 90
+
+    # The runner's temperature was actually mutated between conditions.
+    assert sorted(set(runner.temperatures_seen)) == [0.0, 0.3, 0.7]
+
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert summary["tasks_total"] == 10
+    assert summary["temperatures"] == [0.0, 0.3, 0.7]
+    assert summary["seeds"] == [42, 43, 44]
+    assert len(summary["conditions"]) == 9  # 3 temps x 3 seeds
+    # The canned "pass" trajectory always calls get_weather(Kraków). Only
+    # adv_005's oracle (any_tool_called=get_weather + city contains Kraków)
+    # is satisfied; the other 9 adversarial tasks fail. So per condition we
+    # expect 1/10 passes, and 9 conditions x 1 = 9 total passes.
+    for cond in summary["conditions"]:
+        assert cond["total"] == 10
+        assert cond["passed"] == 1
+    assert "by_temperature" in summary["aggregate"]
+    assert "overall" in summary["aggregate"]
+    assert summary["aggregate"]["overall"]["pass_rate"] == round(9 / 90, 4)
+
+
+def test_run_suite_grid_persists_temperature_in_trajectory(tmp_path: Path):
+    runner = _TempAwareRunner({f"adv_{n:03d}": "pass" for n in range(1, 11)})
+    adv_dir = REPO_ROOT / "tasks" / "adversarial"
+    rc = cli.main(
+        [
+            "run-suite",
+            "--model-path",
+            "x.gguf",
+            "--model-id",
+            "fake-m",
+            "--quant",
+            "Q8_0",
+            "--tasks-dir",
+            str(adv_dir),
+            "--seeds",
+            "42",
+            "--temperatures",
+            "0.0,0.3,0.7",
+            "--output",
+            str(tmp_path),
+        ],
+        runner_factory=_factory(runner),
+    )
+    assert rc == 0
+    lines = (tmp_path / "trajectories.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 30  # 10 tasks x 1 seed x 3 temps
+    # The scripted runner doesn't itself stamp temperature into the
+    # Trajectory (that's the LlamaCppRunner's job via agent_loop), so the
+    # serialized field is the model default (0.0). We just check the field
+    # exists in the schema and round-trips.
+    parsed = [json.loads(l) for l in lines]
+    assert all("temperature" in p for p in parsed)
+
+
+def test_temperatures_overrides_singular_temperature(tmp_path: Path):
+    """When both --temperature and --temperatures are passed, plural wins."""
+    runner = _TempAwareRunner({f"adv_{n:03d}": "pass" for n in range(1, 11)})
+    adv_dir = REPO_ROOT / "tasks" / "adversarial"
+    rc = cli.main(
+        [
+            "run-suite",
+            "--model-path",
+            "x.gguf",
+            "--model-id",
+            "fake-m",
+            "--quant",
+            "Q8_0",
+            "--tasks-dir",
+            str(adv_dir),
+            "--seeds",
+            "42",
+            "--temperature",
+            "0.5",  # singular — should be ignored
+            "--temperatures",
+            "0.0,0.7",
+            "--output",
+            str(tmp_path),
+        ],
+        runner_factory=_factory(runner),
+    )
+    assert rc == 0
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert summary["temperatures"] == [0.0, 0.7]
+    assert sorted(set(runner.temperatures_seen)) == [0.0, 0.7]
+
+
+def test_single_temperature_keeps_old_summary_shape(tmp_path: Path):
+    """Without --temperatures the summary uses the legacy single-condition shape."""
+    runner = _TempAwareRunner({f"weather_smoke_{n:03d}": "pass" for n in range(1, 6)})
+    rc = cli.main(
+        [
+            "run-suite",
+            "--model-path",
+            "x.gguf",
+            "--model-id",
+            "fake-m",
+            "--quant",
+            "Q8_0",
+            "--tasks-dir",
+            str(SMOKE_DIR),
+            "--seeds",
+            "42",
+            "--output",
+            str(tmp_path),
+        ],
+        runner_factory=_factory(runner),
+    )
+    assert rc == 0
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    # Legacy shape: top-level num_passed / num_total / failure_tag_counts
+    assert "num_passed" in summary
+    assert "conditions" not in summary
+
+
+def test_format_grid_report_renders_heatmap():
+    from polagentbench.eval.smoke import aggregate_grid_summary, format_grid_report
+
+    cells = []
+    for temp in [0.0, 0.3]:
+        for seed in [42, 43]:
+            for tid, passed in [("adv_001", True), ("adv_002", False)]:
+                cells.append(
+                    {
+                        "temperature": temp,
+                        "seed": seed,
+                        "task_id": tid,
+                        "passed": passed,
+                        "status": "PASS" if passed else "FAIL",
+                        "failure_tags": [] if passed else ["language_leakage"],
+                        "trajectory_summary": "x",
+                        "latency_ms": 100.0,
+                        "repair_applied_steps": 0,
+                    }
+                )
+    summary = aggregate_grid_summary(
+        cells,
+        model_id="bielik-mini",
+        quant_label="Q8_0",
+        repair=False,
+        temperatures=[0.0, 0.3],
+        seeds=[42, 43],
+        task_ids=["adv_001", "adv_002"],
+    )
+    report = format_grid_report(summary)
+    assert "Adversarial grid" in report
+    assert "adv_001" in report and "adv_002" in report
+    assert "T=0.0" in report and "T=0.3" in report
+    assert "s42" in report and "s43" in report
+    assert "✓" in report and "✗" in report
+    assert "language_leakage" in report

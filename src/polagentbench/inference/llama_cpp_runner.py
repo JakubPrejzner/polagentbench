@@ -59,6 +59,7 @@ def agent_loop(
     complete_chat: CompleteChat,
     prompt_language: PromptLanguage = "pl",
     repair: bool = False,
+    temperature: float = 0.0,
 ) -> Trajectory:
     """Run one task end-to-end and produce a :class:`Trajectory`.
 
@@ -181,6 +182,7 @@ def agent_loop(
         failure_tags=failure_tags,
         total_latency_ms=total_latency_ms,
         total_tokens=total_tokens,
+        temperature=temperature,
     )
 
 
@@ -271,6 +273,7 @@ class LlamaCppRunner(ModelRunner):
             complete_chat=self._complete_chat,
             prompt_language=self.prompt_language,
             repair=self.repair,
+            temperature=self.temperature,
         )
 
     # ------------------------------------------------------------------
