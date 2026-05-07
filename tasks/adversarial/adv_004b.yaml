@@ -1,0 +1,68 @@
+# Adversarial 4b/13: answer-shape discipline (final_answer must be a string).
+#
+# The unintended discovery of the original adv_004 run: the strict prompt
+# trains the model that JSON is required at every step, and it overgeneralises
+# to the ``answer`` field, emitting ``{"action": "final_answer",
+# "answer": {<dict>}}`` instead of a plain string. final_answer_is_string
+# converts that into an oracle failure (final_answer_shape_violation) without
+# entangling diacritics. tools_called_in_order_loose lets either order pass
+# so this task isolates the answer-shape failure mode.
+
+id: adv_004b
+category: TOOL_SELECTION
+environment: weather
+language_variant: PL_EN
+prompt: "Sprawdź pogodę w Świnoujściu i Żorach."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+strict_match: true
+expected_final_state:
+  tools_called_in_order_loose:
+    - {tool: get_weather, args: {city: "Świnoujście"}}
+    - {tool: get_weather, args: {city: "Żory"}}
+  final_answer_is_string: true
+  final_answer_used: true
+max_steps: 6
+constraints:
+  - "Final answer must be a natural-language string, not a JSON object."

@@ -1,17 +1,20 @@
-# Adversarial 9/10: STATEFUL multi-step with arithmetic + conditional alert.
+# Adversarial 12/13: conditional NEGATION (must NOT call alert).
 #
-# Two cities (Zakopane=2°C, Tatry=-5°C in the env DB), so |diff|=7 > 5
-# threshold. Model must (a) call get_weather twice, (b) compute the diff,
-# (c) identify Zakopane as the warmer city, (d) send a low-severity alert
-# for Zakopane. Pure competence test rather than a single-tag failure
-# probe — surfaces planning, arithmetic, and conditional tool use under
-# the strict prompt.
+# Wrocław is pinned to "sun" via hardcoded_state. The instruction has a
+# double negation: "if NOT raining, do NOT send an alert." Common
+# failure under noise: model defaults to dispatching an alert anyway
+# because verbose, action-loaded tasks bias the model toward more tool
+# calls. max_tool_calls: send_weather_alert=0 enforces the negation
+# directly.
 
-id: adv_009
+id: adv_012
 category: STATEFUL
 environment: weather
 language_variant: PL_EN
-prompt: "Porównaj temperatury w Zakopanem i w Tatrach. Jeśli różnica jest większa niż 5 stopni, wyślij alarm dla cieplejszego miasta o niskiej intensywności."
+hardcoded_state:
+  cities:
+    Wrocław: {condition: "sun"}
+prompt: "Sprawdź pogodę we Wrocławiu. Jeśli NIE pada, NIE wysyłaj alarmu."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -56,10 +59,11 @@ available_tools:
       required: [reference_city, max_distance_km]
 initial_state_path: states/empty.json
 expected_final_state:
-  min_tool_calls: {get_weather: 2}
-  tool_args_exact:
-    send_weather_alert: {city: "Zakopane", severity: "low"}
+  tools_called_in_order_loose:
+    - {tool: get_weather, args: {city: "Wrocław"}}
+  max_tool_calls: {send_weather_alert: 0}
+  final_answer_contains_any: ["nie pada", "słońce", "słonecznie", "nie wysłałem", "brak"]
   final_answer_used: true
-max_steps: 8
+max_steps: 4
 constraints:
-  - "Send the alert only for the warmer of the two cities."
+  - "Do not call send_weather_alert when no precipitation is observed."

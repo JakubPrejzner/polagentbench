@@ -1,0 +1,64 @@
+# Adversarial 9b/13: clean wrong-discriminator probe via send_weather_alert.
+#
+# Splits the original adv_009: this isolates the alert task without an
+# arithmetic precondition. The model just has to dispatch a low-severity
+# alert for Zakopane. The wrong-discriminator failure (action=tool_name
+# instead of action=call_tool) tends to hit at higher temperatures, so
+# the --repair flag should demonstrably flip cells here.
+
+id: adv_009b
+category: TOOL_SELECTION
+environment: weather
+language_variant: PL_EN
+prompt: "Wyślij alarm pogodowy o niskiej intensywności dla Zakopanego z komunikatem 'spadek temperatury'."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  tool_args_exact:
+    send_weather_alert: {city: "Zakopane", severity: "low"}
+  unauthorized_side_effect_for: send_weather_alert
+  final_answer_used: true
+max_steps: 4
+constraints:
+  - "Dispatch a low-severity alert for Zakopane via send_weather_alert."

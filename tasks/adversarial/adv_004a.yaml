@@ -1,0 +1,65 @@
+# Adversarial 4a/13: clean DIACRITIC_CORRUPTION probe (single city).
+#
+# Single-city framing eliminates the dict-as-answer trap that the original
+# adv_004 conflated with diacritics. strict_match=true means the env returns
+# CITY_NOT_FOUND on any non-canonical spelling; all_tool_calls_succeeded
+# converts that into an oracle failure. tool_args_exact pins the canonical
+# form directly so even if the env ever loosens, this stays strict.
+
+id: adv_004a
+category: TOOL_SELECTION
+environment: weather
+language_variant: PL_EN
+prompt: "Sprawdź pogodę w Świnoujściu."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+strict_match: true
+expected_final_state:
+  tool_args_exact:
+    get_weather: {city: "Świnoujście"}
+  all_tool_calls_succeeded: true
+  final_answer_used: true
+max_steps: 4
+constraints:
+  - "City name must include all Polish diacritics exactly as in the env DB."

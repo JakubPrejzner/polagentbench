@@ -1,0 +1,65 @@
+# Adversarial 9a/13: pure arithmetic over two readings.
+#
+# Splits the original adv_009 (which mixed arithmetic + conditional alert).
+# Zakopane=2°C, Tatry=-5°C, so |diff|=7. Model must call get_weather twice
+# and surface the number 7 (or the Polish word "siedem") in the final
+# answer. No conditional logic, no severity enum, no second tool —
+# isolates the arithmetic capability.
+
+id: adv_009a
+category: STATEFUL
+environment: weather
+language_variant: PL_EN
+prompt: "Sprawdź temperatury w Zakopanem i w Tatrach. Powiedz jaka jest różnica."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  tools_called_in_order_loose:
+    - {tool: get_weather, args: {city: "Zakopane"}}
+    - {tool: get_weather, args: {city: "Tatry"}}
+  final_answer_contains_any: ["7", "siedem"]
+  final_answer_used: true
+max_steps: 5
+constraints:
+  - "Compute the temperature difference; surface the number in the final answer."
