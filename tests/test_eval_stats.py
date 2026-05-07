@@ -8,7 +8,6 @@ import pytest
 
 from polagentbench.eval.stats import bootstrap_ci, paired_mcnemar
 
-
 # ---------------------------------------------------------------------------
 # bootstrap_ci
 # ---------------------------------------------------------------------------

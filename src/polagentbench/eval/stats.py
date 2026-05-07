@@ -75,8 +75,8 @@ def bootstrap_ci(
         means.append(total / n)
 
     means.sort()
-    lo_idx = int(math.floor((alpha / 2.0) * n_resamples))
-    hi_idx = int(math.ceil((1.0 - alpha / 2.0) * n_resamples)) - 1
+    lo_idx = math.floor((alpha / 2.0) * n_resamples)
+    hi_idx = math.ceil((1.0 - alpha / 2.0) * n_resamples) - 1
     lo_idx = max(0, min(lo_idx, n_resamples - 1))
     hi_idx = max(0, min(hi_idx, n_resamples - 1))
     return (means[lo_idx], means[hi_idx])
