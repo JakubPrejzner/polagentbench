@@ -1,8 +1,12 @@
-"""All 10 adversarial task YAMLs must load and validate cleanly.
+"""All 13 adversarial task YAMLs must load and validate cleanly.
 
 A trivial check, but it catches authoring errors (typos in oracle keys,
 unknown FailureTag names, malformed YAML) at suite-collection time rather
 than mid-run on the GPU box.
+
+In prompt 03.5 the original adv_004 and adv_009 were each split into two
+cleaner tasks (4a/4b, 9a/9b) and three mid-difficulty tasks (011-013) were
+added to widen the gradient between ceiling-bound and floor-bound tasks.
 """
 
 from __future__ import annotations
@@ -17,11 +21,31 @@ from polagentbench.types import InterfaceVariant
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ADV_DIR = REPO_ROOT / "tasks" / "adversarial"
 
+EXPECTED_TASK_IDS = sorted(
+    [
+        "adv_001",
+        "adv_002",
+        "adv_003",
+        "adv_004a",
+        "adv_004b",
+        "adv_005",
+        "adv_006",
+        "adv_007",
+        "adv_008",
+        "adv_009a",
+        "adv_009b",
+        "adv_010",
+        "adv_011",
+        "adv_012",
+        "adv_013",
+    ]
+)
 
-def test_all_ten_adversarial_tasks_load():
+
+def test_all_adversarial_tasks_load():
     tasks = load_all_tasks(ADV_DIR)
     ids = sorted(t.id for t in tasks)
-    assert ids == [f"adv_{n:03d}" for n in range(1, 11)]
+    assert ids == EXPECTED_TASK_IDS
 
 
 def test_all_adversarial_tasks_are_pl_en():
@@ -43,13 +67,13 @@ def test_all_adversarial_tasks_have_actionable_oracle():
         assert keys, f"{t.id} has no recognised oracle keys"
 
 
-@pytest.mark.parametrize("task_id", ["adv_003", "adv_004"])
+@pytest.mark.parametrize("task_id", ["adv_003", "adv_004a", "adv_004b"])
 def test_strict_match_tasks_set_strict_match_flag(task_id: str):
     task = load_task(ADV_DIR / f"{task_id}.yaml")
     assert task.strict_match is True
 
 
-@pytest.mark.parametrize("task_id", ["adv_006", "adv_008"])
+@pytest.mark.parametrize("task_id", ["adv_006", "adv_008", "adv_012"])
 def test_hardcoded_state_tasks_pin_a_city(task_id: str):
     task = load_task(ADV_DIR / f"{task_id}.yaml")
     assert task.hardcoded_state is not None
@@ -59,3 +83,19 @@ def test_hardcoded_state_tasks_pin_a_city(task_id: str):
 def test_adv_010_disallows_tool_calls():
     task = load_task(ADV_DIR / "adv_010.yaml")
     assert task.expected_final_state.get("no_tool_calls") is True
+
+
+def test_adv_004b_uses_final_answer_is_string_oracle():
+    task = load_task(ADV_DIR / "adv_004b.yaml")
+    assert task.expected_final_state.get("final_answer_is_string") is True
+
+
+def test_adv_013_uses_strict_order_oracle():
+    task = load_task(ADV_DIR / "adv_013.yaml")
+    assert "tools_called_in_order_strict" in task.expected_final_state
+
+
+def test_adv_012_forbids_alert_via_max_tool_calls_zero():
+    task = load_task(ADV_DIR / "adv_012.yaml")
+    max_calls = task.expected_final_state.get("max_tool_calls", {})
+    assert max_calls.get("send_weather_alert") == 0

@@ -368,7 +368,13 @@ def test_parse_temperatures_helper():
 
 
 def test_run_suite_grid_executes_full_cartesian_product(tmp_path: Path):
-    runner = _TempAwareRunner({f"adv_{n:03d}": "pass" for n in range(1, 11)})
+    # 15 task IDs after the prompt 03.5 split (4a/4b/9a/9b + 011/012/013).
+    adv_ids = [
+        "adv_001", "adv_002", "adv_003", "adv_004a", "adv_004b",
+        "adv_005", "adv_006", "adv_007", "adv_008", "adv_009a",
+        "adv_009b", "adv_010", "adv_011", "adv_012", "adv_013",
+    ]
+    runner = _TempAwareRunner({tid: "pass" for tid in adv_ids})
     adv_dir = REPO_ROOT / "tasks" / "adversarial"
     rc = cli.main(
         [
@@ -391,31 +397,36 @@ def test_run_suite_grid_executes_full_cartesian_product(tmp_path: Path):
         runner_factory=_factory(runner),
     )
     assert rc == 0
-    # 10 tasks x 3 seeds x 3 temps = 90 trajectories
-    assert len(runner.run_log) == 90
+    # 15 tasks x 3 seeds x 3 temps = 135 trajectories
+    assert len(runner.run_log) == 135
 
     # The runner's temperature was actually mutated between conditions.
     assert sorted(set(runner.temperatures_seen)) == [0.0, 0.3, 0.7]
 
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
-    assert summary["tasks_total"] == 10
+    assert summary["tasks_total"] == 15
     assert summary["temperatures"] == [0.0, 0.3, 0.7]
     assert summary["seeds"] == [42, 43, 44]
     assert len(summary["conditions"]) == 9  # 3 temps x 3 seeds
     # The canned "pass" trajectory always calls get_weather(Kraków). Only
     # adv_005's oracle (any_tool_called=get_weather + city contains Kraków)
-    # is satisfied; the other 9 adversarial tasks fail. So per condition we
-    # expect 1/10 passes, and 9 conditions x 1 = 9 total passes.
+    # is satisfied; the other 14 adversarial tasks fail. So per condition we
+    # expect 1/15 passes, and 9 conditions x 1 = 9 total passes.
     for cond in summary["conditions"]:
-        assert cond["total"] == 10
+        assert cond["total"] == 15
         assert cond["passed"] == 1
     assert "by_temperature" in summary["aggregate"]
     assert "overall" in summary["aggregate"]
-    assert summary["aggregate"]["overall"]["pass_rate"] == round(9 / 90, 4)
+    assert summary["aggregate"]["overall"]["pass_rate"] == round(9 / 135, 4)
 
 
 def test_run_suite_grid_persists_temperature_in_trajectory(tmp_path: Path):
-    runner = _TempAwareRunner({f"adv_{n:03d}": "pass" for n in range(1, 11)})
+    adv_ids = [
+        "adv_001", "adv_002", "adv_003", "adv_004a", "adv_004b",
+        "adv_005", "adv_006", "adv_007", "adv_008", "adv_009a",
+        "adv_009b", "adv_010", "adv_011", "adv_012", "adv_013",
+    ]
+    runner = _TempAwareRunner({tid: "pass" for tid in adv_ids})
     adv_dir = REPO_ROOT / "tasks" / "adversarial"
     rc = cli.main(
         [
@@ -439,12 +450,12 @@ def test_run_suite_grid_persists_temperature_in_trajectory(tmp_path: Path):
     )
     assert rc == 0
     lines = (tmp_path / "trajectories.jsonl").read_text(encoding="utf-8").strip().splitlines()
-    assert len(lines) == 30  # 10 tasks x 1 seed x 3 temps
+    assert len(lines) == 45  # 15 tasks x 1 seed x 3 temps
     # The scripted runner doesn't itself stamp temperature into the
     # Trajectory (that's the LlamaCppRunner's job via agent_loop), so the
     # serialized field is the model default (0.0). We just check the field
     # exists in the schema and round-trips.
-    parsed = [json.loads(l) for l in lines]
+    parsed = [json.loads(line) for line in lines]
     assert all("temperature" in p for p in parsed)
 
 

@@ -644,3 +644,241 @@ def test_all_tool_calls_succeeded_off_by_default():
     traj = _trajectory([bad, _step_final(1)])
     res = evaluate(task, traj)
     assert "tool_call_error" not in res.failure_tags
+
+
+# ---------------------------------------------------------------------------
+# New oracle keys introduced in prompt 03.5
+# ---------------------------------------------------------------------------
+
+
+def test_tools_called_in_order_loose_passes_when_all_items_match_any_order():
+    task = _task(
+        {
+            "tools_called_in_order_loose": [
+                {"tool": "get_weather", "args": {"city": "Świnoujście"}},
+                {"tool": "get_weather", "args": {"city": "Żory"}},
+            ]
+        }
+    )
+    # Reverse order should still pass.
+    traj = _trajectory(
+        [
+            _step_call(0, "get_weather", city="Żory"),
+            _step_call(1, "get_weather", city="Świnoujście"),
+            _step_final(2),
+        ]
+    )
+    assert evaluate(task, traj).status is SmokeStatus.PASS
+
+
+def test_tools_called_in_order_loose_fails_when_item_missing():
+    task = _task(
+        {
+            "tools_called_in_order_loose": [
+                {"tool": "get_weather", "args": {"city": "Świnoujście"}},
+                {"tool": "get_weather", "args": {"city": "Żory"}},
+            ]
+        }
+    )
+    traj = _trajectory([_step_call(0, "get_weather", city="Świnoujście"), _step_final(1)])
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "expected_tool_not_called" in res.failure_tags
+
+
+def test_tools_called_in_order_loose_strict_arg_equality():
+    """Diacritic-folded form does NOT match (unlike tool_args_contains)."""
+    task = _task(
+        {
+            "tools_called_in_order_loose": [
+                {"tool": "get_weather", "args": {"city": "Łódź"}},
+            ]
+        }
+    )
+    traj = _trajectory([_step_call(0, "get_weather", city="Lodz"), _step_final(1)])
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "expected_tool_not_called" in res.failure_tags
+
+
+def test_tools_called_in_order_loose_extra_args_allowed():
+    """Spec only pins ``city``; the call may carry additional arguments."""
+    task = _task(
+        {
+            "tools_called_in_order_loose": [
+                {"tool": "send_weather_alert", "args": {"city": "Zakopane", "severity": "low"}},
+            ]
+        }
+    )
+    traj = _trajectory(
+        [
+            _step_call(0, "send_weather_alert", city="Zakopane", severity="low", message="m"),
+            _step_final(1),
+        ]
+    )
+    assert evaluate(task, traj).status is SmokeStatus.PASS
+
+
+def test_tools_called_in_order_strict_passes_in_order():
+    task = _task(
+        {
+            "tools_called_in_order_strict": [
+                {"tool": "get_weather", "args": {"city": "Gdańsk"}},
+                {"tool": "find_nearest_city", "args": {"reference_city": "Gdańsk", "max_distance_km": 50}},
+                {"tool": "get_forecast", "args": {"days": 3}},
+            ]
+        }
+    )
+    traj = _trajectory(
+        [
+            _step_call(0, "get_weather", city="Gdańsk"),
+            _step_call(1, "find_nearest_city", reference_city="Gdańsk", max_distance_km=50),
+            _step_call(2, "get_forecast", city="Sopot", days=3),
+            _step_final(3),
+        ]
+    )
+    assert evaluate(task, traj).status is SmokeStatus.PASS
+
+
+def test_tools_called_in_order_strict_fails_when_reordered():
+    task = _task(
+        {
+            "tools_called_in_order_strict": [
+                {"tool": "get_weather", "args": {"city": "Gdańsk"}},
+                {"tool": "find_nearest_city", "args": {"reference_city": "Gdańsk", "max_distance_km": 50}},
+            ]
+        }
+    )
+    traj = _trajectory(
+        [
+            _step_call(0, "find_nearest_city", reference_city="Gdańsk", max_distance_km=50),
+            _step_call(1, "get_weather", city="Gdańsk"),
+            _step_final(2),
+        ]
+    )
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "wrong_tool_order" in res.failure_tags
+
+
+def test_tools_called_in_order_strict_allows_extra_calls_in_between():
+    """A 'noise' call between two strict items doesn't break the subsequence match."""
+    task = _task(
+        {
+            "tools_called_in_order_strict": [
+                {"tool": "get_weather", "args": {"city": "Gdańsk"}},
+                {"tool": "get_forecast", "args": {"days": 3}},
+            ]
+        }
+    )
+    traj = _trajectory(
+        [
+            _step_call(0, "get_weather", city="Gdańsk"),
+            _step_call(1, "find_nearest_city", reference_city="Gdańsk", max_distance_km=50),
+            _step_call(2, "get_forecast", city="Sopot", days=3),
+            _step_final(3),
+        ]
+    )
+    assert evaluate(task, traj).status is SmokeStatus.PASS
+
+
+def test_tools_called_in_order_strict_fails_with_missing_arg_match():
+    task = _task(
+        {
+            "tools_called_in_order_strict": [
+                {"tool": "get_forecast", "args": {"days": 3}},
+            ]
+        }
+    )
+    traj = _trajectory([_step_call(0, "get_forecast", city="Kraków", days=5), _step_final(1)])
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "wrong_tool_order" in res.failure_tags
+
+
+def test_final_answer_is_string_passes_when_answer_is_string():
+    task = _task({"final_answer_is_string": True, "final_answer_used": True})
+    traj = _trajectory([_step_final(0, "Pogoda jest dobra.")])
+    assert evaluate(task, traj).status is SmokeStatus.PASS
+
+
+def test_final_answer_is_string_flags_dict_answer_via_schema_violation():
+    """Pydantic rejects ``answer={...}`` at parse time → schema_violation step.
+
+    The check inspects raw_model_output of schema_violation steps for the
+    wrong-shape pattern and emits ``final_answer_shape_violation``.
+    """
+    task = _task({"final_answer_is_string": True})
+    bad_step = TrajectoryStep(
+        step_idx=0,
+        raw_model_output='{"action": "final_answer", "answer": {"city": "Świnoujście", "temperature_c": 8.0}}',
+        parsed_action=None,
+        parse_error={"category": "schema_violation", "message": "answer must be string"},  # type: ignore[arg-type]
+        tool_result=None,
+        state_after={},
+        latency_ms=1.0,
+    )
+    traj = _trajectory([bad_step])
+    res = evaluate(task, traj)
+    assert res.status is SmokeStatus.FAIL
+    assert "final_answer_shape_violation" in res.failure_tags
+
+
+def test_final_answer_is_string_silent_when_no_attempted_final_answer():
+    task = _task({"final_answer_is_string": True, "final_answer_used": True})
+    traj = _trajectory([_step_call(0, "get_weather", city="Kraków")])
+    res = evaluate(task, traj)
+    # final_answer_used should fail (final_answer_missing), but the
+    # is_string check should NOT add final_answer_shape_violation since
+    # the model never even tried a final_answer.
+    assert "final_answer_shape_violation" not in res.failure_tags
+
+
+def test_final_answer_is_string_off_by_default():
+    """spec_value=False is a no-op."""
+    task = _task({"final_answer_is_string": False})
+    bad_step = TrajectoryStep(
+        step_idx=0,
+        raw_model_output='{"action": "final_answer", "answer": {"x": 1}}',
+        parsed_action=None,
+        parse_error={"category": "schema_violation", "message": "x"},  # type: ignore[arg-type]
+        tool_result=None,
+        state_after={},
+        latency_ms=1.0,
+    )
+    traj = _trajectory([bad_step, _step_final(1)])
+    # final_answer_is_string off -> no shape-violation tag from this check.
+    # (schema_violation tag from the parse_error step still surfaces, that's
+    # a separate behaviour.)
+    res = evaluate(task, traj)
+    assert "final_answer_shape_violation" not in res.failure_tags
+
+
+def test_max_tool_calls_zero_blocks_any_call():
+    """Acceptance: max_tool_calls={tool: 0} forbids any call to that tool."""
+    task = _task(
+        {
+            "max_tool_calls": {"send_weather_alert": 0},
+            "any_tool_called": "get_weather",
+        }
+    )
+    # Calling send_weather_alert at all should fail the 0-threshold.
+    traj_fail = _trajectory(
+        [
+            _step_call(0, "get_weather", city="Wrocław"),
+            _step_call(1, "send_weather_alert", city="Wrocław", severity="low", message="m"),
+            _step_final(2),
+        ]
+    )
+    res_fail = evaluate(task, traj_fail)
+    assert res_fail.status is SmokeStatus.FAIL
+    assert "loop" in res_fail.failure_tags
+
+    # Not calling it passes.
+    traj_pass = _trajectory(
+        [
+            _step_call(0, "get_weather", city="Wrocław"),
+            _step_final(1, "Słońce — alarm niepotrzebny."),
+        ]
+    )
+    assert evaluate(task, traj_pass).status is SmokeStatus.PASS
