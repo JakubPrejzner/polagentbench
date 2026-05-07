@@ -68,10 +68,32 @@ Recognised expectation keys
     surface DIACRITIC_CORRUPTION / INFLECTION_MISMATCH: the env returns
     CITY_NOT_FOUND on any non-canonical form and this check converts that
     into an explicit oracle failure.
+``tools_called_in_order_loose``: ``list[{tool, args}]``
+    A list of expected ``{tool: <name>, args: {<k>: <v>, ...}}`` items.
+    Each item must be matched by *some* ``call_tool`` step whose ``tool``
+    matches and whose arguments contain every expected ``(k, v)`` pair as
+    an exact equality. Order across items is not enforced. Tags
+    ``expected_tool_not_called`` on any unmatched item. Use this when
+    multiple required calls don't have a strict natural ordering.
+``tools_called_in_order_strict``: ``list[{tool, args}]``
+    Same item shape as ``..._loose`` but items must appear as a *subsequence*
+    of the executed call sequence, in the given order, where each subsequence
+    element is a call whose tool/args match the spec. Tags ``wrong_tool_order``
+    when the order constraint isn't satisfied. Use for tasks where step
+    ordering itself is part of the test (chained tool calls).
+``final_answer_is_string``: ``bool``
+    When True, the final_answer's ``answer`` field must be a non-empty
+    string. Pydantic enforces this at parse time, so the typical failure
+    is a ``schema_violation`` parse error on a step that *attempted* a
+    final_answer with ``answer`` as a JSON object/array. The check
+    examines those parse-error steps and tags
+    ``final_answer_shape_violation`` when the answer-shape pattern is
+    detected.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from collections import Counter
@@ -80,7 +102,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
-from ..protocol import CallTool, FinalAnswer
+from ..protocol import CallTool, FinalAnswer, _extract_json_text
 from ..types import Task, Trajectory
 
 __all__ = [
@@ -473,11 +495,14 @@ def _check_all_tool_calls_succeeded(
         return [], []
     failed: list[tuple[str, str]] = []
     for step in trajectory.steps:
-        if isinstance(step.parsed_action, CallTool) and isinstance(step.tool_result, dict):
-            if not step.tool_result.get("ok"):
-                failed.append(
-                    (step.parsed_action.tool, str(step.tool_result.get("error_code", "?")))
-                )
+        if (
+            isinstance(step.parsed_action, CallTool)
+            and isinstance(step.tool_result, dict)
+            and not step.tool_result.get("ok")
+        ):
+            failed.append(
+                (step.parsed_action.tool, str(step.tool_result.get("error_code", "?")))
+            )
     if not failed:
         return [], []
     summary = ", ".join(f"{tool}->{code}" for tool, code in failed)
@@ -516,6 +541,148 @@ def _check_hallucinated_tool_result_for(
     return [], []
 
 
+def _format_call(c: CallTool) -> str:
+    args = ", ".join(f"{k}={v!r}" for k, v in c.arguments.items())
+    return f"{c.tool}({args})"
+
+
+def _call_matches_spec_item(c: CallTool, expected_tool: str, expected_args: dict[str, Any]) -> bool:
+    """Strict equality match on (tool, args). Extra args on the call are allowed.
+
+    Used by ``tools_called_in_order_loose`` and ``..._strict`` so the spec
+    can pin only the args under test (e.g. ``{city: "Gdańsk"}``) without
+    forcing every argument the model passed to be enumerated.
+    """
+    if c.tool != expected_tool:
+        return False
+    return all(c.arguments.get(k) == v for k, v in expected_args.items())
+
+
+def _normalize_spec_item(item: Any) -> tuple[str, dict[str, Any]] | None:
+    if not isinstance(item, dict) or "tool" not in item:
+        return None
+    tool = item.get("tool")
+    args = item.get("args", {}) or {}
+    if not isinstance(tool, str) or not isinstance(args, dict):
+        return None
+    return tool, args
+
+
+def _check_tools_called_in_order_loose(
+    spec_value: Any, calls: list[CallTool]
+) -> tuple[list[str], list[str]]:
+    if not isinstance(spec_value, list) or not spec_value:
+        return (
+            [f"tools_called_in_order_loose expects a non-empty list, got {spec_value!r}"],
+            ["expectation_malformed"],
+        )
+    seen = "; ".join(_format_call(c) for c in calls) or "(no calls)"
+    reasons: list[str] = []
+    tags: list[str] = []
+    for raw_item in spec_value:
+        norm = _normalize_spec_item(raw_item)
+        if norm is None:
+            reasons.append(f"tools_called_in_order_loose: malformed item {raw_item!r}")
+            tags.append("expectation_malformed")
+            continue
+        tool, args = norm
+        if not any(_call_matches_spec_item(c, tool, args) for c in calls):
+            reasons.append(
+                f"tools_called_in_order_loose: no call matched "
+                f"{{tool: {tool!r}, args: {args}}}; saw: {seen}"
+            )
+            tags.append("expected_tool_not_called")
+    return reasons, tags
+
+
+def _check_tools_called_in_order_strict(
+    spec_value: Any, calls: list[CallTool]
+) -> tuple[list[str], list[str]]:
+    if not isinstance(spec_value, list) or not spec_value:
+        return (
+            [f"tools_called_in_order_strict expects a non-empty list, got {spec_value!r}"],
+            ["expectation_malformed"],
+        )
+    needed: list[tuple[str, dict[str, Any]]] = []
+    for raw_item in spec_value:
+        norm = _normalize_spec_item(raw_item)
+        if norm is None:
+            return (
+                [f"tools_called_in_order_strict: malformed item {raw_item!r}"],
+                ["expectation_malformed"],
+            )
+        needed.append(norm)
+    idx = 0
+    for c in calls:
+        if idx >= len(needed):
+            break
+        expected_tool, expected_args = needed[idx]
+        if _call_matches_spec_item(c, expected_tool, expected_args):
+            idx += 1
+    if idx >= len(needed):
+        return [], []
+    seen = " -> ".join(_format_call(c) for c in calls) or "(no calls)"
+    missing = needed[idx]
+    return (
+        [
+            f"tools_called_in_order_strict: did not match item #{idx + 1} "
+            f"{{tool: {missing[0]!r}, args: {missing[1]}}} in order; saw: {seen}"
+        ],
+        ["wrong_tool_order"],
+    )
+
+
+def _check_final_answer_is_string(
+    spec_value: Any, trajectory: Trajectory
+) -> tuple[list[str], list[str]]:
+    if not bool(spec_value):
+        return [], []
+    fa = _final_answer(trajectory)
+    if fa is not None:
+        # Pydantic enforces ``answer: str`` at parse time, so if a parsed
+        # FinalAnswer is on the trajectory the answer is necessarily a
+        # string. Defensive check kept for completeness.
+        if not isinstance(fa.answer, str):
+            return (
+                [f"final_answer.answer was not a string: {type(fa.answer).__name__}"],
+                ["final_answer_shape_violation"],
+            )
+        return [], []
+    # No parsed final_answer. Walk schema_violation parse-error steps and
+    # try to recognise the wrong-shape pattern: a JSON object whose
+    # ``action`` is ``final_answer`` but whose ``answer`` is not a
+    # string. This is the prompt 03 discovery: the strict prompt teaches
+    # the model that JSON is required at every step, and it
+    # overgeneralises the schema to the answer field.
+    for step in trajectory.steps:
+        if step.parse_error is None or step.parse_error.category != "schema_violation":
+            continue
+        json_text = _extract_json_text(step.raw_model_output)
+        if json_text is None:
+            continue
+        try:
+            data = json.loads(json_text)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        if data.get("action") != "final_answer":
+            continue
+        answer_val = data.get("answer")
+        if not isinstance(answer_val, str):
+            return (
+                [
+                    f"final_answer.answer was not a string: "
+                    f"{type(answer_val).__name__} (raw step #{step.step_idx})"
+                ],
+                ["final_answer_shape_violation"],
+            )
+    # No final_answer at all and no shape-violation pattern detected.
+    # ``final_answer_used`` (when set) handles the missing-final-answer
+    # case; this check stays silent to avoid double-reporting.
+    return [], []
+
+
 _CHECKS: dict[str, Any] = {
     "any_tool_called": ("calls", _check_any_tool_called),
     "tool_args_contains": ("calls", _check_tool_args_contains),
@@ -525,12 +692,15 @@ _CHECKS: dict[str, Any] = {
     # registered as an alias rather than a separate function so behaviour
     # never drifts between the two spellings.
     "tools_called_in_order": ("calls", _check_ordered_tools),
+    "tools_called_in_order_loose": ("calls", _check_tools_called_in_order_loose),
+    "tools_called_in_order_strict": ("calls", _check_tools_called_in_order_strict),
     "min_tool_calls": ("calls", _check_min_tool_calls),
     "max_tool_calls": ("calls", _check_max_tool_calls),
     "no_tool_calls": ("calls", _check_no_tool_calls),
     "final_answer_used": ("trajectory", _check_final_answer_used),
     "final_answer_no_temperature": ("trajectory", _check_final_answer_no_temperature),
     "final_answer_contains_any": ("trajectory", _check_final_answer_contains_any),
+    "final_answer_is_string": ("trajectory", _check_final_answer_is_string),
     "unauthorized_side_effect_for": ("trajectory", _check_unauthorized_side_effect),
     "hallucinated_tool_result_for": ("trajectory", _check_hallucinated_tool_result_for),
     "all_tool_calls_succeeded": ("trajectory", _check_all_tool_calls_succeeded),
