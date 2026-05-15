@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -158,6 +159,34 @@ def _parse_temperatures(temps_str: str) -> list[float]:
 
 
 # ---------------------------------------------------------------------------
+# Git stamping
+# ---------------------------------------------------------------------------
+
+
+def _git_info() -> dict[str, str]:
+    """Return ``{"commit_hash", "git_ref"}`` from the cwd's git state.
+
+    Stamped into every ``summary.json`` so results can be tied back to the
+    exact source revision that produced them — methods-section integrity
+    requirement. Falls back to ``"unknown"`` when git is unavailable or the
+    cwd is not a repo, so the pipeline never crashes on a missing stamp.
+    """
+    out: dict[str, str] = {}
+    for key, argv in (
+        ("commit_hash", ["git", "rev-parse", "HEAD"]),
+        ("git_ref", ["git", "describe", "--always", "--dirty"]),
+    ):
+        try:
+            res = subprocess.run(
+                argv, check=True, capture_output=True, text=True, timeout=5
+            )
+            out[key] = res.stdout.strip() or "unknown"
+        except (subprocess.SubprocessError, FileNotFoundError, OSError):
+            out[key] = "unknown"
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Runner construction (kept indirect so tests can override)
 # ---------------------------------------------------------------------------
 
@@ -226,6 +255,7 @@ def _run_suite(
         quant_label=quant_label,
         repair=repair,
     )
+    summary.update(_git_info())
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
 
     report = format_console_report(
@@ -359,6 +389,7 @@ def _run_grid(
         seeds=list(seeds),
         task_ids=task_ids,
     )
+    summary.update(_git_info())
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     print(format_grid_report(summary))
 

@@ -555,3 +555,80 @@ def test_format_grid_report_renders_heatmap():
     assert "s42" in report and "s43" in report
     assert "✓" in report and "✗" in report
     assert "language_leakage" in report
+
+
+# ---------------------------------------------------------------------------
+# Git stamping
+# ---------------------------------------------------------------------------
+
+
+def test_git_info_returns_strings_inside_repo():
+    info = cli._git_info()
+    assert set(info) == {"commit_hash", "git_ref"}
+    assert isinstance(info["commit_hash"], str) and info["commit_hash"]
+    assert isinstance(info["git_ref"], str) and info["git_ref"]
+
+
+def test_git_info_falls_back_to_unknown_when_git_missing(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def _boom(*_a, **_kw):
+        raise FileNotFoundError("git not installed")
+
+    monkeypatch.setattr(cli.subprocess, "run", _boom)
+    info = cli._git_info()
+    assert info == {"commit_hash": "unknown", "git_ref": "unknown"}
+
+
+def test_run_subcommand_stamps_summary_with_git_info(tmp_path: Path):
+    runner = _ScriptedRunner({"weather_smoke_001": "pass"})
+    rc = cli.main(
+        [
+            "run",
+            "--model-path",
+            "x.gguf",
+            "--model-id",
+            "fake-m",
+            "--quant",
+            "Q8_0",
+            "--task",
+            str(SMOKE_DIR / "weather_smoke_001.yaml"),
+            "--output",
+            str(tmp_path),
+        ],
+        runner_factory=_factory(runner),
+    )
+    assert rc == 0
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert "commit_hash" in summary and isinstance(summary["commit_hash"], str)
+    assert "git_ref" in summary and isinstance(summary["git_ref"], str)
+    assert summary["commit_hash"]  # non-empty
+    assert summary["git_ref"]
+
+
+def test_run_suite_grid_stamps_summary_with_git_info(tmp_path: Path):
+    runner = _ScriptedRunner({"weather_smoke_001": "pass", "weather_smoke_002": "pass"})
+    rc = cli.main(
+        [
+            "run-suite",
+            "--model-path",
+            "x.gguf",
+            "--model-id",
+            "fake-m",
+            "--quant",
+            "Q8_0",
+            "--tasks-dir",
+            str(SMOKE_DIR),
+            "--seeds",
+            "42",
+            "--temperatures",
+            "0.0,0.3",
+            "--output",
+            str(tmp_path),
+        ],
+        runner_factory=_factory(runner),
+    )
+    assert rc == 0
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert "commit_hash" in summary and isinstance(summary["commit_hash"], str)
+    assert "git_ref" in summary and isinstance(summary["git_ref"], str)
