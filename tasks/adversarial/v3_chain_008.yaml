@@ -1,0 +1,65 @@
+# v3 hard chain 008: LONG PL_EN (5 tool), Gdańsk source + conditional alert.
+# get_weather(Gdańsk) -> find_nearest_city(Gdańsk,60)=[Sopot,Gdynia,Elbląg] first=Sopot
+# -> get_forecast(Sopot,5) mean=7.24C -> convert mean to F -> (mean<10 => send low alert for Sopot).
+# Deterministic branch: 7.24 < 10 -> severity=low. Structure-only oracle (5-tool strict).
+id: v3_chain_008
+category: STATEFUL
+environment: weather
+language_variant: PL_EN
+prompt: "Sprawdź pogodę w Gdańsku. Następnie znajdź miasta w promieniu sześćdziesięciu kilometrów od Gdańska i dla pierwszego miasta z otrzymanej listy pobierz prognozę na pięć dni, a potem przelicz średnią temperaturę z tej prognozy na stopnie Fahrenheita. Na koniec, jeśli średnia temperatura jest poniżej dziesięciu stopni Celsjusza, wyślij alarm pogodowy o niskiej intensywności dla tego miasta."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  tools_called_in_order_strict:
+    - {tool: get_weather, args: {city: "Gdańsk"}}
+    - {tool: find_nearest_city, args: {reference_city: "Gdańsk", max_distance_km: 60}}
+    - {tool: get_forecast, args: {city: "Sopot", days: 5}}
+    - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
+    - {tool: send_weather_alert, args: {city: "Sopot", severity: "low"}}
+  final_answer_used: true
+max_steps: 10
+constraints:
+  - "Normalise Polish numerals: 'sześćdziesięciu' to 60, 'pięć' to 5, 'dziesięciu' to 10."
+  - "Use the FIRST city returned by find_nearest_city, not the nearest by distance."
+  - "Send the alert only if the forecast mean is below 10 C (it is: 7.24)."
