@@ -127,3 +127,44 @@ Recipe w pamięci project_polagentbench.md.
 ### NASTĘPNY KROK
 Rozbudowa hard tier 7→~25 łańcuchów (offline) → jeden duży run Q8/Q4/Q2 × rozbudowany suite.
 Q2 full odtworzyć z recipe (requantize z Q8_0, ~3 min) jako część tego runu, nie osobno.
+
+## 2026-06-02 — full gradient 45 tasks Q8/Q4/Q2 (HEAD d6088b3)
+
+Box: Vast RTX 4090 (24 GB), CUDA 13.1, instance 39177922 ($0.69/hr). llama-cpp-python **0.3.19**
+(abetlen cu124 prebuilt wheel + nvidia-cuda-runtime-cu12/cublas-cu12 + LD_LIBRARY_PATH; NIE source-build —
+CUDA-13 nvcc dalej pada). Q2_K = requantize z public Q8_0 (CPU-build `llama-quantize --allow-requantize`,
+**2.7 G / 3.01 BPW**, koherentny PL). Suite = pełne **45 tasków** (15 easy adv_* + 30 hard v3_chain_*),
+T=0 / seed 42 / max-tokens default. pytest 204/204. Sanity gate easy-Q8 = 0.9333 (reprodukcja poprzedniego runu).
+Wszystkie 6 summary.json stamped **commit_hash=d6088b3 (CZYSTY)**, git_ref=d6088b3. Oracle re-eval `evaluate()`
+== summary.num_passed dla wszystkich 6. Stare wyniki 0a37d31-dirty/22-task NIE mieszane.
+Wyniki: `results/v3_full_2026-06-02/{q8,q4,q2}_{no_repair,repair}/` + `per_task_table.csv` (270 wierszy).
+
+### Agregat pass_rate (model × repair × tier)
+| model  | repair | easy (15)   | hard (30)   | all (45)    | avg_tok(all) |
+|--------|--------|-------------|-------------|-------------|--------------|
+| Q8_0   | off    | 0.9333 (14) | 0.3333 (10) | 0.5333 (24) | 7570  |
+| Q8_0   | on     | 0.9333 (14) | 0.4333 (13) | 0.6000 (27) | 7304  |
+| Q4_K_M | off    | 1.0000 (15) | 0.4333 (13) | 0.6222 (28) | 7666  |
+| Q4_K_M | on     | 1.0000 (15) | 0.4333 (13) | 0.6222 (28) | 7684  |
+| Q2_K   | off    | 0.5333 (8)  | 0.1667 (5)  | 0.2889 (13) | 13690 |
+| Q2_K   | on     | 0.6667 (10) | 0.1667 (5)  | 0.3333 (15) | 13613 |
+
+### McNemar exact (two-sided), repair=off, paired per tier (b=first-only pass, c=second-only pass)
+| para        | easy (15)        | hard (30)        | all (45)          |
+|-------------|------------------|------------------|-------------------|
+| Q8 vs Q4    | b0 c1  p=1.0000  | b4 c7  p=0.5488  | b4 c8  p=0.3877   |
+| Q4 vs Q2    | b7 c0  p=0.0156  | b8 c0  p=0.0078  | b15 c0 p=0.0001   |
+| Q8 vs Q2    | b6 c0  p=0.0312  | b8 c3  p=0.2266  | b14 c3 p=0.0127   |
+
+### Osie (hard tier, repair=off) — surowo
+(a) **ARITH** structure vs arith (10 par): Q8 0.30→0.10 (Δ+0.20); Q4 0.60→0.10 (Δ+0.50); Q2 0.40→0.00 (Δ+0.40). Arith ≈ podłoga na każdym quancie.
+(b) **IQG** PL_EN(17) vs EN_EN(13): Q8 0.235 vs 0.462 (gap −0.226); Q4 0.353 vs 0.538 (−0.186); Q2 0.118 vs 0.231 (−0.113). EN_EN > PL_EN na każdym quancie.
+(c) **Chain length** (2t:7 / 3t:6 / 4t:12 / 5t:5): Q8 0.71 / 0.00 / 0.08 / 0.80; Q4 0.86 / 0.50 / 0.25 / 0.20; Q2 0.43 / 0.33 / 0.00 / 0.00. Niemonotoniczne.
+
+### Findingi (surowo)
+1. Pełny gradient (n=45, hard n=30) daje moc, której n=7 nie miał: **Q4 vs Q2 istotne we wszystkich tierach** (p≤0.0156), **Q8 vs Q2 istotne all** (p=0.0127); **Q8 vs Q4 NIEistotne** (p≥0.39).
+2. AQG Q8→Q4 dalej **ujemny/zerowy** (Q4 ≥ Q8 wszędzie: all 0.6222 vs 0.5333/0.6000) — trzeci raz z rzędu przeciwnie do H1.
+3. Repair: Q8 +0.067 (hard +3 taski), Q2 +0.044 (easy +2), Q4 = 0 (identyczne). Niezerowy efekt repair (inaczej niż 22-task run, gdzie 0 dla obu).
+4. Q2_K = ostra degradacja (all 0.29/0.33, hard 0.17, easy 1.0/0.93→0.53/0.67); avg_tok ~2× (13–18k vs 7–10k) → zapętla się do max_steps.
+5. Arytmetyka = podłoga (≤0.10) vs structure 0.30–0.60 na n=10 par — failure w rozumowaniu na danych, nie w orkiestracji (potwierdza 22-task na większym n).
+6. IQG ujemny: EN_EN > PL_EN na każdym quancie (gap 0.11–0.23) — interfejs PL trudniejszy mimo modelu PL-first.
