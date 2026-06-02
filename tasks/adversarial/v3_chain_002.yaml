@@ -1,0 +1,63 @@
+# v3 hard chain 002: 4-tool data-dependency, order-trap on Łódź.
+# find_nearest_city("Łódź",130) -> [Warszawa 130, Częstochowa 120, Płock 100]
+# in graph order (NOT distance-sorted) -> first = Warszawa though Płock is nearest.
+# Structure-only oracle (no arithmetic value check).
+id: v3_chain_002
+category: STATEFUL
+environment: weather
+language_variant: PL_EN
+prompt: "Sprawdź pogodę w Łodzi. Następnie znajdź miasta w promieniu stu trzydziestu kilometrów od Łodzi i dla pierwszego miasta z otrzymanej listy pobierz prognozę na cztery dni. Na koniec podaj średnią temperaturę z tej prognozy w stopniach Fahrenheita."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  tools_called_in_order_strict:
+    - {tool: get_weather, args: {city: "Łódź"}}
+    - {tool: find_nearest_city, args: {reference_city: "Łódź", max_distance_km: 130}}
+    - {tool: get_forecast, args: {city: "Warszawa", days: 4}}
+    - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
+  final_answer_used: true
+max_steps: 8
+constraints:
+  - "Normalise Polish numerals: 'stu trzydziestu' to 130, 'cztery' to 4."
+  - "Use the FIRST city returned by find_nearest_city, not the nearest by distance."

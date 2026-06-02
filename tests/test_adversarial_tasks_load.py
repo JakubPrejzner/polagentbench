@@ -38,6 +38,13 @@ EXPECTED_TASK_IDS = sorted(
         "adv_011",
         "adv_012",
         "adv_013",
+        "v3_chain_001",
+        "v3_chain_001_arith",
+        "v3_chain_002",
+        "v3_chain_003",
+        "v3_chain_en_001",
+        "v3_chain_en_001_arith",
+        "v3_chain_en_002",
     ]
 )
 
@@ -48,9 +55,20 @@ def test_all_adversarial_tasks_load():
     assert ids == EXPECTED_TASK_IDS
 
 
-def test_all_adversarial_tasks_are_pl_en():
+EN_EN_TASK_IDS = {
+    "v3_chain_en_001",
+    "v3_chain_en_001_arith",
+    "v3_chain_en_002",
+}
+
+
+def test_adversarial_task_language_variants():
+    """adv_* and the PL v3 chains are PL_EN; v3_chain_en_* chains are EN_EN."""
     for t in load_all_tasks(ADV_DIR):
-        assert t.language_variant is InterfaceVariant.PL_EN
+        expected = (
+            InterfaceVariant.EN_EN if t.id in EN_EN_TASK_IDS else InterfaceVariant.PL_EN
+        )
+        assert t.language_variant is expected, t.id
 
 
 def test_all_adversarial_tasks_use_weather_env():
