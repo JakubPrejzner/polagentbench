@@ -168,3 +168,44 @@ Wyniki: `results/v3_full_2026-06-02/{q8,q4,q2}_{no_repair,repair}/` + `per_task_
 4. Q2_K = ostra degradacja (all 0.29/0.33, hard 0.17, easy 1.0/0.93→0.53/0.67); avg_tok ~2× (13–18k vs 7–10k) → zapętla się do max_steps.
 5. Arytmetyka = podłoga (≤0.10) vs structure 0.30–0.60 na n=10 par — failure w rozumowaniu na danych, nie w orkiestracji (potwierdza 22-task na większym n).
 6. IQG ujemny: EN_EN > PL_EN na każdym quancie (gap 0.11–0.23) — interfejs PL trudniejszy mimo modelu PL-first.
+
+## 2026-06-02 — Q3_K_M punkt gradientu + lokalizacja progu
+
+### Cel
+Dobicie JEDNEGO punktu między Q4 a Q2 (Q3_K_M) do lokalizacji progu. Tylko Q3, oba repair, 45 tasków = 2 runy.
+Q8/Q4/Q2 NIE przeliczane (istniejące d6088b3). Świeży box Vast 4090 / CUDA 13.1 / driver 590.48.
+
+### Setup
+HEAD `d6088b3` CZYSTY (reset --hard po sync z lokalnego 1f066f0; jedyny diff = SESSION_LOG, kod/suite identyczne), tasks=45, pytest 204/204.
+Q3_K_M = requantize z PUBLIC Q8_0 (`llama-quantize --allow-requantize ... Q3_K_M`, CPU-build llama.cpp `-DGGML_CUDA=OFF`):
+3466 MiB / **3.89 BPW** (3.4G). Smoke PL koherentny (GPU offload CUDA0). llama-cpp 0.3.19 cu124 wheel + cu12 runtime + LD_LIBRARY_PATH.
+Sanity gate easy-15 (repair=off): **13/15 = 0.867** (między Q2 0.53 a Q4 1.0, > 0.3 floor) → requantize OK.
+
+### Run 2026-06-02 (commit d6088b3 clean, T=0 seed=42, RTX 4090)
+`results/v3_full_2026-06-02/q3_{no_repair,repair}/`. Pass_rate off/on: **Q3 0.4222 / 0.4222** (19/45 oba; repair Δ0).
+Kanoniczny pass/fail = `evaluate()`, cross-check vs summary.json num_passed = MATCH (Q8 24, Q4 28, Q3 19, Q2 13).
+
+### Krzywa pass_rate per (quant × tier), repair=off — Q8→Q4→Q3→Q2
+| quant   | easy (/15)   | hard (/30)   | all (/45)    |
+|---------|--------------|--------------|--------------|
+| Q8_0    | 14/15=0.933  | 10/30=0.333  | 24/45=0.533  |
+| Q4_K_M  | 15/15=1.000  | 13/30=0.433  | 28/45=0.622  |
+| Q3_K_M  | 13/15=0.867  |  6/30=0.200  | 19/45=0.422  |
+| Q2_K    |  8/15=0.533  |  5/30=0.167  | 13/45=0.289  |
+Q3 ląduje między Q4 a Q2 na all/easy; na hard Q3 (0.200) ≈ Q2 (0.167), poniżej Q8 (0.333) — niemonotonicznie.
+
+### LOKALIZACJA PROGU — structure-only hard (n=20), repair=off
+pass_rate: Q8 9/20=0.450 · Q4 12/20=0.600 · **Q3 5/20=0.250** · Q2 5/20=0.250.
+McNemar exact (two-sided), pary sąsiednie (n10 = lepszy>gorszy, n01 = gorszy>lepszy; cross-check repo `paired_mcnemar` == niezależny exact-binomial):
+| para         | n10 | n01 | p       | istotność |
+|--------------|-----|-----|---------|-----------|
+| Q4 ↔ Q3      | 7   | 0   | 0.0156  | **SIG**   |
+| Q3 ↔ Q2      | 2   | 2   | 1.0000  | ns        |
+| (ref) Q8 ↔ Q4| 4   | 7   | 0.5488  | ns        |
+→ **Próg siedzi na Q4→Q3.** Q3 spadł już do poziomu Q2 (oba 5/20=0.250); Q3↔Q2 nieodróżnialne. Cliff: Q4(0.600) → Q3(0.250).
+
+### Arith hard (n=10), repair=off
+Q8 0.100 · Q4 0.100 · **Q3 0.100** · Q2 0.000. Podłoga arytmetyczna trzyma się na Q3 (1/10 = en_004_arith, Madrid single-temp 62.6). Arith nie niesie progu (brak miejsca na spadek).
+
+### Finding (surowo)
+Próg degradacji Q4→Q2 jest zlokalizowany na **Q4→Q3** (McNemar p=0.0156 na structure-20), nie Q3→Q2 (p=1.0000). Q3_K_M (3.89 BPW) zachowuje się na strukturze jak Q2_K, nie jak Q4_K_M — załamanie orkiestracji następuje już przy zejściu z 4-bit do 3-bit. Arith = podłoga na wszystkich 4 quantach.
