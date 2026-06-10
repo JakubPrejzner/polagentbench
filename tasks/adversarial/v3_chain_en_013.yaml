@@ -1,12 +1,20 @@
 # v3 hard chain EN 013: LONG EN_EN 5-tool + arith + conditional alert, NO find_nearest_city.
-# weather Oslo(4.0) -> forecast Oslo 7 [2.2,2.8,3.2,3.8,4.2,4.8,5.2] avg 3.74C -> convert(avg->F=38.74)
-# -> weather Stockholm -> send_weather_alert(Stockholm, severity = high if avg<5C else medium).
-# avg 3.74 < 5 -> high (deterministic). final_answer = average Oslo temperature in F = 38.74.
+# Rounding-robust redesign (2026-06-10): the old golden (7-day mean 26.2/7 =
+# 3.742857... -> 38.74F) required FULL precision into convert; a model that
+# rounded the mean to 3.74 got 38.73 and falsely failed. No (city, days) pair
+# has a full-forecast mean with <=1 decimal (checked all intl cities x d=2-7),
+# so the arith is now the mean of forecast day 2 and day 4 (d=4): offsets
+# -0.5/+0.5 cancel, mean = city base = INTEGER -> conversion is precision-proof.
+# weather Oslo(4.0) -> forecast Oslo 4 [3.0,3.5,4.0,4.5] -> avg(day2,day4) =
+# avg(3.5,4.5) = 4.0C exact -> convert(4.0C -> 39.2F); identical for 4.0,
+# round(4.0,1) and int 4 -> weather Stockholm -> send_weather_alert(Stockholm,
+# severity = high if avg<5C else medium); 4.0 < 5 -> high (deterministic).
+# final_answer = the average in F = 39.2.
 id: v3_chain_en_013
 category: STATEFUL
 environment: weather
 language_variant: EN_EN
-prompt: "Check the weather in Oslo, then get the seven-day forecast for Oslo and convert its average temperature to degrees Fahrenheit. Then check the weather in Stockholm and send a weather alert for Stockholm: high severity if the average Oslo temperature is below five degrees Celsius, otherwise medium severity. Finally, report the average Oslo temperature in degrees Fahrenheit."
+prompt: "Check the weather in Oslo, then get the four-day forecast for Oslo. Compute the average of the second and the fourth day's forecast temperatures and convert that average to degrees Fahrenheit. Then check the weather in Stockholm and send a weather alert for Stockholm: high severity if the average you computed is below five degrees Celsius, otherwise medium severity. Finally, report the average in degrees Fahrenheit."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -53,13 +61,14 @@ initial_state_path: states/empty.json
 expected_final_state:
   tools_called_in_order_strict:
     - {tool: get_weather, args: {city: "Oslo"}}
-    - {tool: get_forecast, args: {city: "Oslo", days: 7}}
+    - {tool: get_forecast, args: {city: "Oslo", days: 4}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
     - {tool: get_weather, args: {city: "Stockholm"}}
     - {tool: send_weather_alert, args: {city: "Stockholm", severity: "high"}}
-  final_answer_contains_any: ["38.74", "38,74"]
+  final_answer_contains_any: ["39.2", "39,2"]
   final_answer_used: true
 max_steps: 10
 constraints:
-  - "Alert severity is deterministic: average Oslo forecast 3.74°C < 5°C, so severity is 'high'."
+  - "Alert severity is deterministic: avg(day2, day4) = 4.0°C < 5°C, so severity is 'high'."
   - "Keep the alert severity enum in English ('high'), not Polish."
+  - "Golden is rounding-robust: the day2/day4 mean is an exact integer (4.0), so any intermediate rounding yields the same 39.2°F."
