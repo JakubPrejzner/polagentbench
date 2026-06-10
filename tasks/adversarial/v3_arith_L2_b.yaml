@@ -1,0 +1,64 @@
+# v3 arith ladder — L2 (two tools) / instance b (Berlin).
+# get_forecast, then the model computes the mean in C itself and offloads
+# the C->F conversion to convert_temperature (prompt names the tool).
+# env returns round(9.76*9/5+32, 2) = 49.57 — exactly the golden string.
+# Golden: 49.57 F. Identical golden to L0_b / L1_b / L3_b.
+# Tool block byte-identical to v3_chain_001 (constant schema across rungs).
+id: v3_arith_L2_b
+category: STATEFUL
+environment: weather
+language_variant: PL_EN
+prompt: "Pobierz prognozę dla Berlina na 5 dni. Policz średnią temperaturę z prognozy w stopniach Celsjusza, a następnie przelicz ją na stopnie Fahrenheita narzędziem convert_temperature i podaj wynik."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  tools_called_in_order_strict:
+    - {tool: get_forecast, args: {city: "Berlin", days: 5}}
+    - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
+  final_answer_contains_any: ["49.57", "49,57"]
+  final_answer_used: true
+max_steps: 8
+constraints:
+  - "Normalise the inflected city name: 'dla Berlina' to nominative 'Berlin'."
+  - "Mean is computed by the model; C->F conversion goes through the tool."

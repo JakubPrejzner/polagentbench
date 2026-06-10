@@ -1,0 +1,64 @@
+# v3 arith ladder — L0 (zero tools) / instance a (Łódź numbers).
+# Axis: the SAME arithmetic operation at every rung (mean of 5 temps -> °F);
+# rungs differ ONLY in tool scaffolding. L0 hands the model the five numbers
+# verbatim (they are the exact Łódź get_forecast days=5 values), so no tool
+# call is needed — pure arithmetic + direct final_answer.
+# Golden: mean(6.8,7.2,7.8,8.2,8.8) = 7.76 C -> *9/5+32 = 45.97 F.
+# Identical golden to v3_arith_L1_a / L2_a / L3_a (and v3_chain_001_arith).
+# Tool block is kept byte-identical to v3_chain_001 on purpose: the schema
+# load in context is a constant across rungs; only required tool USE varies.
+id: v3_arith_L0_a
+category: STATEFUL
+environment: weather
+language_variant: PL_EN
+prompt: "Oto 5 odczytów temperatury: 6.8, 7.2, 7.8, 8.2, 8.8°C. Podaj średnią w °F."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  no_tool_calls: true
+  final_answer_contains_any: ["45.97", "45,97"]
+  final_answer_used: true
+max_steps: 8
+constraints:
+  - "No tool call should be necessary; compute the mean and C->F conversion directly."

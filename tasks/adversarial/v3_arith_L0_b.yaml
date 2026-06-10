@@ -1,0 +1,61 @@
+# v3 arith ladder — L0 (zero tools) / instance b (Berlin numbers).
+# Numbers are the exact Berlin get_forecast days=5 values; no tool needed.
+# Golden: mean(8.8,9.2,9.8,10.2,10.8) = 9.76 C -> *9/5+32 = 49.57 F.
+# Identical golden to v3_arith_L1_b / L2_b / L3_b (L3_b reaches the same
+# value via Poznań->Wrocław, whose base temp equals Berlin's 10.0 C).
+# Tool block byte-identical to v3_chain_001 (constant schema across rungs).
+id: v3_arith_L0_b
+category: STATEFUL
+environment: weather
+language_variant: PL_EN
+prompt: "Oto 5 odczytów temperatury: 8.8, 9.2, 9.8, 10.2, 10.8°C. Podaj średnią w °F."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  no_tool_calls: true
+  final_answer_contains_any: ["49.57", "49,57"]
+  final_answer_used: true
+max_steps: 8
+constraints:
+  - "No tool call should be necessary; compute the mean and C->F conversion directly."

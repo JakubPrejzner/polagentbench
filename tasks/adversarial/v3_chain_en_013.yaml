@@ -1,0 +1,65 @@
+# v3 hard chain EN 013: LONG EN_EN 5-tool + arith + conditional alert, NO find_nearest_city.
+# weather Oslo(4.0) -> forecast Oslo 7 [2.2,2.8,3.2,3.8,4.2,4.8,5.2] avg 3.74C -> convert(avg->F=38.74)
+# -> weather Stockholm -> send_weather_alert(Stockholm, severity = high if avg<5C else medium).
+# avg 3.74 < 5 -> high (deterministic). final_answer = average Oslo temperature in F = 38.74.
+id: v3_chain_en_013
+category: STATEFUL
+environment: weather
+language_variant: EN_EN
+prompt: "Check the weather in Oslo, then get the seven-day forecast for Oslo and convert its average temperature to degrees Fahrenheit. Then check the weather in Stockholm and send a weather alert for Stockholm: high severity if the average Oslo temperature is below five degrees Celsius, otherwise medium severity. Finally, report the average Oslo temperature in degrees Fahrenheit."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  tools_called_in_order_strict:
+    - {tool: get_weather, args: {city: "Oslo"}}
+    - {tool: get_forecast, args: {city: "Oslo", days: 7}}
+    - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
+    - {tool: get_weather, args: {city: "Stockholm"}}
+    - {tool: send_weather_alert, args: {city: "Stockholm", severity: "high"}}
+  final_answer_contains_any: ["38.74", "38,74"]
+  final_answer_used: true
+max_steps: 10
+constraints:
+  - "Alert severity is deterministic: average Oslo forecast 3.74°C < 5°C, so severity is 'high'."
+  - "Keep the alert severity enum in English ('high'), not Polish."

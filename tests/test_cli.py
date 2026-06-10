@@ -397,27 +397,28 @@ def test_run_suite_grid_executes_full_cartesian_product(tmp_path: Path):
         runner_factory=_factory(runner),
     )
     assert rc == 0
-    # 45 tasks (15 adv_* + 30 v3_chain_*) x 3 seeds x 3 temps = 405 trajectories
-    assert len(runner.run_log) == 405
+    # 67 tasks (15 adv_* + 52 hard: 30 v3_chain_* + 12 v3_arith_L* + 10 B2-1)
+    # x 3 seeds x 3 temps = 603 trajectories
+    assert len(runner.run_log) == 603
 
     # The runner's temperature was actually mutated between conditions.
     assert sorted(set(runner.temperatures_seen)) == [0.0, 0.3, 0.7]
 
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
-    assert summary["tasks_total"] == 45
+    assert summary["tasks_total"] == 67
     assert summary["temperatures"] == [0.0, 0.3, 0.7]
     assert summary["seeds"] == [42, 43, 44]
     assert len(summary["conditions"]) == 9  # 3 temps x 3 seeds
     # The canned "pass" trajectory always calls get_weather(Kraków). Only
     # adv_005's oracle (any_tool_called=get_weather + city contains Kraków)
-    # is satisfied; the other 44 tasks (incl. all 30 v3_chain_*) fail. So per
-    # condition we expect 1/45 passes, and 9 conditions x 1 = 9 total passes.
+    # is satisfied; the other 66 tasks (incl. all 52 hard chains) fail. So per
+    # condition we expect 1/67 passes, and 9 conditions x 1 = 9 total passes.
     for cond in summary["conditions"]:
-        assert cond["total"] == 45
+        assert cond["total"] == 67
         assert cond["passed"] == 1
     assert "by_temperature" in summary["aggregate"]
     assert "overall" in summary["aggregate"]
-    assert summary["aggregate"]["overall"]["pass_rate"] == round(9 / 405, 4)
+    assert summary["aggregate"]["overall"]["pass_rate"] == round(9 / 603, 4)
 
 
 def test_run_suite_grid_persists_temperature_in_trajectory(tmp_path: Path):
@@ -450,7 +451,7 @@ def test_run_suite_grid_persists_temperature_in_trajectory(tmp_path: Path):
     )
     assert rc == 0
     lines = (tmp_path / "trajectories.jsonl").read_text(encoding="utf-8").strip().splitlines()
-    assert len(lines) == 135  # 45 tasks x 1 seed x 3 temps
+    assert len(lines) == 201  # 67 tasks x 1 seed x 3 temps
     # The scripted runner doesn't itself stamp temperature into the
     # Trajectory (that's the LlamaCppRunner's job via agent_loop), so the
     # serialized field is the model default (0.0). We just check the field

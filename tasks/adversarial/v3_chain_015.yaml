@@ -1,0 +1,60 @@
+# v3 hard chain 015: SHORT PL_EN 2-tool + arith (no graph) — symmetry on the short end (B2-1).
+# pogoda Poznań(8.5C) -> convert(8.5C->47.3F). final_answer = value in F = 47.3.
+id: v3_chain_015
+category: TOOL_SELECTION
+environment: weather
+language_variant: PL_EN
+prompt: "Sprawdź pogodę w Poznaniu, a następnie przelicz tę temperaturę na stopnie Fahrenheita i podaj wynik."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  tools_called_in_order_strict:
+    - {tool: get_weather, args: {city: "Poznań"}}
+    - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
+  final_answer_contains_any: ["47.3", "47,3"]
+  final_answer_used: true
+max_steps: 6
+constraints:
+  - "Normalise Polish city inflection: 'Poznaniu' to 'Poznań'."
+  - "Convert the CURRENT weather temperature (8.5°C), not a forecast value."

@@ -1,0 +1,63 @@
+# v3 hard chain EN 010: LONG EN_EN 5-tool, NO find_nearest_city (graph is PL-only).
+# Breaks the length×language confound — a long EN chain (B2-1 key cell).
+# weather Madrid(17.0) -> forecast Madrid 6 [15.5,16.0,16.5,17.0,17.5,18.0]
+# -> convert(day1=15.5C->59.9F) -> convert(day6=18.0C->64.4F) -> weather Rome. Structure-only.
+id: v3_chain_en_010
+category: STATEFUL
+environment: weather
+language_variant: EN_EN
+prompt: "Check the weather in Madrid, then get the six-day forecast for Madrid. Convert the first day's forecast temperature to degrees Fahrenheit, then convert the sixth day's forecast temperature to degrees Fahrenheit. Finally, check the weather in Rome."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  tools_called_in_order_strict:
+    - {tool: get_weather, args: {city: "Madrid"}}
+    - {tool: get_forecast, args: {city: "Madrid", days: 6}}
+    - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
+    - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
+    - {tool: get_weather, args: {city: "Rome"}}
+  final_answer_used: true
+max_steps: 10
+constraints:
+  - "Convert the FIRST and SIXTH forecast day, in that order, before checking Rome."

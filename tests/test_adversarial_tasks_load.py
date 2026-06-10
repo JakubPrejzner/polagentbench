@@ -1,4 +1,4 @@
-"""All 13 adversarial task YAMLs must load and validate cleanly.
+"""All 67 adversarial task YAMLs must load and validate cleanly.
 
 A trivial check, but it catches authoring errors (typos in oracle keys,
 unknown FailureTag names, malformed YAML) at suite-collection time rather
@@ -7,6 +7,10 @@ than mid-run on the GPU box.
 In prompt 03.5 the original adv_004 and adv_009 were each split into two
 cleaner tasks (4a/4b, 9a/9b) and three mid-difficulty tasks (011-013) were
 added to widen the gradient between ceiling-bound and floor-bound tasks.
+Suite consolidation 2026-06-10: hard tier = 30 original chains + 12
+arithmetic-isolation ladder tasks (v3_arith_L{0..3}_{a,b,c}) + 10 B2-1
+length/language chains (v3_chain_012-016, v3_chain_en_010-014) = 52;
+plus the 15 easy adv_* tasks -> 67 total.
 """
 
 from __future__ import annotations
@@ -38,6 +42,18 @@ EXPECTED_TASK_IDS = sorted(
         "adv_011",
         "adv_012",
         "adv_013",
+        "v3_arith_L0_a",
+        "v3_arith_L0_b",
+        "v3_arith_L0_c",
+        "v3_arith_L1_a",
+        "v3_arith_L1_b",
+        "v3_arith_L1_c",
+        "v3_arith_L2_a",
+        "v3_arith_L2_b",
+        "v3_arith_L2_c",
+        "v3_arith_L3_a",
+        "v3_arith_L3_b",
+        "v3_arith_L3_c",
         "v3_chain_001",
         "v3_chain_001_arith",
         "v3_chain_002",
@@ -58,6 +74,11 @@ EXPECTED_TASK_IDS = sorted(
         "v3_chain_010",
         "v3_chain_010_arith",
         "v3_chain_011",
+        "v3_chain_012",
+        "v3_chain_013",
+        "v3_chain_014",
+        "v3_chain_015",
+        "v3_chain_016",
         "v3_chain_en_003",
         "v3_chain_en_003_arith",
         "v3_chain_en_004",
@@ -68,6 +89,11 @@ EXPECTED_TASK_IDS = sorted(
         "v3_chain_en_007",
         "v3_chain_en_008",
         "v3_chain_en_009",
+        "v3_chain_en_010",
+        "v3_chain_en_011",
+        "v3_chain_en_012",
+        "v3_chain_en_013",
+        "v3_chain_en_014",
     ]
 )
 
@@ -92,6 +118,11 @@ EN_EN_TASK_IDS = {
     "v3_chain_en_007",
     "v3_chain_en_008",
     "v3_chain_en_009",
+    "v3_chain_en_010",
+    "v3_chain_en_011",
+    "v3_chain_en_012",
+    "v3_chain_en_013",
+    "v3_chain_en_014",
 }
 
 
