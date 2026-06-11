@@ -254,4 +254,7 @@ długością łańcuchów. Q8 na 3-tool EN: 0/6 (anomalia do obejrzenia per-task
 Q8 +4 (p=0.125 ns), Q2 +2 (p=0.50), Q4/Q3 Δ0. Spójne z historią (repair pomaga tylko na krańcach, nieistotnie).
 
 ### Box
-vastai destroy instance 40551707 (self-auth) — patrz niżej.
+Self-auth destroy NIE zadziałał na tym obrazie (klucz kontenerowy i ~/.vast_api_key → 401 Invalid user key;
+CLI mimo błędu zwraca rc=0 — grepować output). Instancja 40551707 ubita RĘCZNIE przez usera z konsoli
+2026-06-11; zweryfikowano connection refused. Lokalny vastai CLI bez klucza (403) — na przyszłość: klucz
+usera albo ręczny destroy.
