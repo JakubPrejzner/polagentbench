@@ -209,3 +209,49 @@ Q8 0.100 · Q4 0.100 · **Q3 0.100** · Q2 0.000. Podłoga arytmetyczna trzyma s
 
 ### Finding (surowo)
 Próg degradacji Q4→Q2 jest zlokalizowany na **Q4→Q3** (McNemar p=0.0156 na structure-20), nie Q3→Q2 (p=1.0000). Q3_K_M (3.89 BPW) zachowuje się na strukturze jak Q2_K, nie jak Q4_K_M — załamanie orkiestracji następuje już przy zejściu z 4-bit do 3-bit. Arith = podłoga na wszystkich 4 quantach.
+
+## 2026-06-11 — Drabina L0-L3 + pełny gradient 67 tasków (Q8/Q4/Q3/Q2 × repair)
+
+### Setup
+Świeży box Vast 4090 (CUDA 13.0, driver 580.159.03, instance 40551707). HEAD **ef122d4 CZYSTY**, suite **67**
+(15 easy + 52 hard = 30 chains + 12 v3_arith_L* + 10 B2-1). llama-cpp **0.3.19** cu124 wheel + cu12 runtime +
+LD_LIBRARY_PATH (recipe). UWAGA: `hf` CLI nie wchodzi z `uv sync` — doinstalowane `huggingface_hub` 1.18 ręcznie.
+Q8_0/Q4_K_M z HF (7.95/4.50 GB); Q3_K_M/Q2_K requantize z public Q8_0 (3.64/2.82 GB), smoke PL koherentny.
+pytest 204/204 na boxie. **Gate easy-Q8 off: 14/15=0.9333 (reprodukcja)** → `gate_q8_easy/`. 8 runów T=0/seed42,
+**scp po każdym quancie** (zero strat). Wszystkie summary: commit_hash=ef122d4 czysty; oracle `evaluate()` == num_passed 8/8.
+Wyniki: `results/v3_ladder_2026-06-11/{q8,q4,q3,q2}_{no_repair,repair}/` + `analysis/{ANALYSIS.md,per_task_matrix.csv,analyze.py}`.
+
+### Pass_rate (easy/hard/all), repair off → on
+| quant   | easy (15)    | hard (52)    | all (67) off→on        |
+|---------|--------------|--------------|------------------------|
+| Q8_0    | 0.933/0.933  | 0.308→0.385  | 0.448 → 0.507          |
+| Q4_K_M  | 1.000/1.000  | 0.385→0.385  | 0.522 → 0.522 (PEAK)   |
+| Q3_K_M  | 0.867/0.867  | 0.269→0.269  | 0.403 → 0.403          |
+| Q2_K    | 0.533/0.667  | 0.096→0.096  | 0.194 → 0.224          |
+McNemar (off, all): Q4↔Q3 p=0.0215 SIG; Q3↔Q2 p=0.0013 SIG; Q8↔Q2 p=0.0005 SIG; Q8↔Q4 p=0.30 ns.
+Próg dalej na Q4→Q3; kształt krzywej z runów 45-task replikowany na n=67. UWAGA: all-rate NIEporównywalne
+wprost z 45-task (inny mianownik; drabina 12×0 ciągnie w dół).
+
+### ★ DRABINA L0-L3 — rozstrzygnięcie zagadki arith (NIE-binarne)
+Pass_rate: **0/48** (każdy poziom × każdy quant × off/on). Sama tabela poziomów NIE rozstrzyga — rozstrzyga
+reklasyfikacja po treści final_answer (96 fail-slotów, `analysis/` sekcja 7):
+**PROTOCOL_SHAPE 28** (głównie Q8: answer jako liczba/obiekt zamiast stringa — model LICZY ~dobrze, łamie schemat),
+**GENUINE_ARITH 24** (Q3 najwięcej: 5/12 — liczba po prostu zła, np. L0 36.6/56.6/42.2 vs golden 45.97/49.57/45.03),
+**TOOL_FIXATION/LOOP 21** (głównie Q2: na L0 woła narzędzia mimo danych w prompcie, pętli się do max_steps),
+**ROUNDING_MINE 11+3** (poprawna procedura, średnia zaokrąglona do 1 miejsca przed konwersją: 7.76→7.8→46.04 itd. —
+ta sama mina co stary en_013; goldeny drabiny .76/.76/.24 do naprawy wzorcem day2/day4 PRZED kolejnym runem drabiny),
+MIXED 9. Wniosek: hipoteza "umie liczyć, gubi go łańcuch" NIE potwierdzona w czystej formie — L0 pada tak samo jak L3,
+ale z INNYCH powodów per quant: Q8→protokół, Q3→arytmetyka, Q2→fiksacja narzędziowa. Quantyzacja przesuwa TRYB
+porażki, nie tylko jej częstość.
+
+### Length×język rozbity (B2-1; chains n=40, off)
+short(2-3t): PL 0.67/0.89/0.89/0.22 vs EN 0.33/0.67/0.33/0.33 (Q8/Q4/Q3/Q2) — **PL > EN na short** (poza Q2).
+long(4-6t): PL 0.15/0.23/0.08/0.00 vs EN 0.56/0.33/0.22/0.00 — **EN > PL na long** (Q8 wyraźnie).
+Kierunek gapu językowego ODWRACA się z długością → wcześniejszy finding "EN_EN>PL_EN wszędzie" był konfundowany
+długością łańcuchów. Q8 na 3-tool EN: 0/6 (anomalia do obejrzenia per-task).
+
+### Repair (off↔on, McNemar all-67)
+Q8 +4 (p=0.125 ns), Q2 +2 (p=0.50), Q4/Q3 Δ0. Spójne z historią (repair pomaga tylko na krańcach, nieistotnie).
+
+### Box
+vastai destroy instance 40551707 (self-auth) — patrz niżej.
