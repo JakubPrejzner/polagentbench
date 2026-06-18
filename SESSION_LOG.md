@@ -258,3 +258,44 @@ Self-auth destroy NIE zadziałał na tym obrazie (klucz kontenerowy i ~/.vast_ap
 CLI mimo błędu zwraca rc=0 — grepować output). Instancja 40551707 ubita RĘCZNIE przez usera z konsoli
 2026-06-11; zweryfikowano connection refused. Lokalny vastai CLI bez klucza (403) — na przyszłość: klucz
 usera albo ręczny destroy.
+
+## 2026-06-18 — Clean-arith re-run (mina zaokrąglania USUNIĘTA, commit 83db813)
+
+Po fixie miny (faa3bfa = drabina, 83db813 = wszystkie arith chainy + bliźniaki, wzorzec day2/day4):
+pełne 67×8 (Q8/Q4/Q3/Q2 × repair off/on), RTX 4090 (instancja 41522333, host e3cfc6e849c2), CUDA 12.8,
+llama-cpp-python 0.3.19 cu124 wheel + nvidia-cuda-runtime/cublas-cu12 + LD_LIBRARY_PATH (recipe). Q3_K_M/Q2_K
+requantize z public Q8_0 (3.89/3.01 BPW), smoke PL koherentny. pytest 204. Gate easy-Q8 off=14/15=0.9333
+(reprodukcja) → gate_q8_easy/. Wszystkie summary.json stemplowane commit_hash=83db813. T=0/seed42, scp po
+każdym quancie. Wyniki: results/v3_arith_clean_2026-06-18/{q8,q4,q3,q2}_{no_repair,repair}/ + analysis/
+{ANALYSIS.md, per_task_matrix.csv, analyze.py}. Tryby porażki z re-ewaluacji każdej trajektorii (evaluate()).
+
+### Pass_rate (easy/hard/all), off → on
+| Q8_0   | 0.933        | 0.308→0.462 | 0.448→0.567          |
+| Q4_K_M | 1.000        | 0.365→0.481 | 0.507→0.597 (PEAK)   |
+| Q3_K_M | 0.867        | 0.346       | 0.463 (repair Δ0)    |
+| Q2_K   | 0.533→0.667  | 0.038       | 0.149→0.179          |
+Bootstrap 95% CI all-67 off: Q8[.328,.567] Q4[.388,.627] Q3[.343,.582] Q2[.075,.239] (Q2 rozłączny).
+
+### ★ MINA = 0 na każdym quancie (było 11+3=14 w b19ae0d) + tryb porażki PRZESUWA się z quantem
+Arith+drabina (n=25, off) fails / PROTOCOL_SHAPE / GENUINE_ARITH / TOOL_FIXATION / ROUNDING_MINE:
+Q8 21/16/4/1/0 · Q4 21/7/13/1/0 · Q3 20/5/4/11/0 · Q2 25/6/15/4/0.
+Po usunięciu miny widać czysto: **Q8→protocol-shape, Q4→genuine-arith, Q3→tool-fixation, Q2→collapse**.
+To główny finding — progresja wcześniej maskowana przez minę (14 fałszywych faili „poprawna-wartość-odrzucona").
+
+### Arith floor (twin struktura vs arith wartość, matched n=10, off)
+Q8 .20/.20 · Q4 .40/.20 · Q3 .40/.20 · Q2 .10/.00. Wartość = ścisła podłoga pod orkiestracją
+(Q4/Q3 rozwiązują łańcuch 2× częściej niż trafiają liczbę). Drabina L0–L3 ≈ 0/3 na każdym poziomie/quancie.
+
+### McNemar (off) — KLIF na Q3→Q2, NIE Q4→Q3
+hard-52: q8-q4 p=.549 · q4-q3 p=1.000 · q3-q2 **p<.0001** (b=16,c=0).
+structure-chain-27: q4-q3 p=.727 · q3-q2 **p=.0010**. Próg b19ae0d „Q4→Q3" (structure-20, p=.0156) NIE
+reprodukuje po fixie miny — Q4≈Q3 statystycznie, ostry monotoniczny collapse jest na 3-bit→2-bit.
+Caveat: fix ruszył też miasta/dni części bliźniaków strukturalnych → nie 1:1 z structure-20 z 2026-06-11.
+
+### Length×język (chains, off) — surowo
+short PL (L2/PL n=9) twarde: 7/9/9/1 (Q8/Q4/Q3/Q2); long PL order-trap (L4/PL n=11) = podłoga 0/1/2/0;
+long EN (L5/EN n=7) mocne na Q8 (5/7), degraduje 2/1/0. Czysta „PL>EN short / EN>PL long" rozmyta przez
+nierówne kubełki po rebalansie miast/dni — dominująca podłoga to rodzina long-PL order-trap.
+
+### Box
+Instancja 41522333 — self-auth destroy próbowany na końcu (znana odchyłka tego obrazu: 401, rc=0 mimo błędu).
