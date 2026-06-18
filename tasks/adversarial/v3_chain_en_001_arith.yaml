@@ -1,11 +1,14 @@
 # v3 hard chain EN 001 (arith): copy of en_001 + numeric final_answer_contains_any.
-# Golden mean->F = 49.57 (Berlin forecast5 mean 9.76C -> 49.57F).
-# List: both decimal separators, +/-0.01, int-rounded 50 variants.
+# Rounding-robust day2/day4 redesign (2026-06-18): was Berlin forecast5 full mean
+# 9.76C -> 49.57F, a precision MINE; Berlin's base also gives whole-°F 50.0 under
+# day2/day4. City moved to Paris (12.0C); mean(day2,day4) of a 4-day forecast =
+# 12.0C exactly -> 53.6F, robust to 1-dp rounding.
+# Golden: Paris -> forecast4 -> mean(day2=11.5,day4=12.5)=12.0C -> 53.6F.
 id: v3_chain_en_001_arith
 category: STATEFUL
 environment: weather
 language_variant: EN_EN
-prompt: "Check the weather in Berlin, then get the forecast for the next five days, and finally give the average temperature of that forecast converted to degrees Fahrenheit."
+prompt: "Check the weather in Paris, then get the forecast for the next four days, and finally give the average of the second and fourth day's forecast temperatures converted to degrees Fahrenheit."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -51,11 +54,12 @@ available_tools:
 initial_state_path: states/empty.json
 expected_final_state:
   tools_called_in_order_strict:
-    - {tool: get_weather, args: {city: "Berlin"}}
-    - {tool: get_forecast, args: {city: "Berlin", days: 5}}
+    - {tool: get_weather, args: {city: "Paris"}}
+    - {tool: get_forecast, args: {city: "Paris", days: 4}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
-  final_answer_contains_any: ["49.57", "49,57"]
+  final_answer_contains_any: ["53.6", "53,6"]
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "Average all five forecast days, then convert the mean to Fahrenheit."
+  - "Average the 2nd and 4th forecast days, then convert that mean to Fahrenheit."
+  - "Golden is rounding-robust: the day2/day4 mean is the exact integer base (12.0), so any rounding yields 53.6°F."

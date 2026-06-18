@@ -1,10 +1,10 @@
 # v3 hard chain EN 003: EN_EN long chain, no find_nearest_city (graph is PL-only).
-# get_weather(London)=11.0C -> get_forecast(London,5) -> mean 10.76C -> 51.37F. Structure-only.
+# get_weather(London)=11.0C -> get_forecast(London,4) -> mean(day2,day4)=11.0C -> 51.8F. Structure-only.
 id: v3_chain_en_003
 category: STATEFUL
 environment: weather
 language_variant: EN_EN
-prompt: "Check the weather in London, then get the forecast for the next five days, and finally give the average temperature of that forecast converted to degrees Fahrenheit."
+prompt: "Check the weather in London, then get the forecast for the next four days, and finally give the average of the second and fourth day's forecast temperatures converted to degrees Fahrenheit."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -51,9 +51,9 @@ initial_state_path: states/empty.json
 expected_final_state:
   tools_called_in_order_strict:
     - {tool: get_weather, args: {city: "London"}}
-    - {tool: get_forecast, args: {city: "London", days: 5}}
+    - {tool: get_forecast, args: {city: "London", days: 4}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "Average all five forecast days, then convert the mean to Fahrenheit."
+  - "Average the 2nd and 4th forecast days, then convert that mean to Fahrenheit."

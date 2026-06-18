@@ -1,10 +1,13 @@
 # v3 hard chain EN 003 (arith): copy of en_003 + numeric final_answer_contains_any.
-# Golden mean->F = 51.37 (London forecast5 mean 10.76C -> 51.37F).
+# Rounding-robust day2/day4 redesign (2026-06-18): was London forecast5 full mean
+# 10.76C -> 51.37F, a precision MINE (round(10.76,1)=10.8 -> 51.44 != 51.37). Now a
+# 4-day forecast and mean(day2,day4) = London base 11.0C exactly -> 51.8F.
+# Golden: London -> forecast4 -> mean(day2=10.5,day4=11.5)=11.0C -> 51.8F.
 id: v3_chain_en_003_arith
 category: STATEFUL
 environment: weather
 language_variant: EN_EN
-prompt: "Check the weather in London, then get the forecast for the next five days, and finally give the average temperature of that forecast converted to degrees Fahrenheit."
+prompt: "Check the weather in London, then get the forecast for the next four days, and finally give the average of the second and fourth day's forecast temperatures converted to degrees Fahrenheit."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -51,10 +54,11 @@ initial_state_path: states/empty.json
 expected_final_state:
   tools_called_in_order_strict:
     - {tool: get_weather, args: {city: "London"}}
-    - {tool: get_forecast, args: {city: "London", days: 5}}
+    - {tool: get_forecast, args: {city: "London", days: 4}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
-  final_answer_contains_any: ["51.37", "51,37"]
+  final_answer_contains_any: ["51.8", "51,8"]
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "Average all five forecast days, then convert the mean to Fahrenheit."
+  - "Average the 2nd and 4th forecast days, then convert that mean to Fahrenheit."
+  - "Golden is rounding-robust: the day2/day4 mean is the exact integer base (11.0), so any rounding yields 51.8°F."

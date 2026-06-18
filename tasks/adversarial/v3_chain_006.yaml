@@ -1,10 +1,11 @@
 # v3 hard chain 006: short 2-tool control (length axis).
-# get_weather(Wrocław)=10.0C -> convert to F (=50.0). Structure-only.
+# get_weather(Gdańsk)=7.0C -> convert to F (=44.6). Structure-only.
+# City moved off Wrocław (10.0C -> whole-°F 50.0, a substring hazard for the arith twin).
 id: v3_chain_006
 category: TOOL_SELECTION
 environment: weather
 language_variant: PL_EN
-prompt: "Sprawdź pogodę we Wrocławiu i przelicz tę temperaturę na stopnie Fahrenheita."
+prompt: "Sprawdź pogodę w Gdańsku i przelicz tę temperaturę na stopnie Fahrenheita."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -50,9 +51,10 @@ available_tools:
 initial_state_path: states/empty.json
 expected_final_state:
   tools_called_in_order_strict:
-    - {tool: get_weather, args: {city: "Wrocław"}}
+    - {tool: get_weather, args: {city: "Gdańsk"}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
   final_answer_used: true
 max_steps: 6
 constraints:
+  - "Normalise Polish city inflection: 'Gdańsku' to 'Gdańsk'."
   - "Convert the Celsius reading from get_weather, do not invent a value."

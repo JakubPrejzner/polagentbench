@@ -1,11 +1,13 @@
 # v3 hard chain 001 (arith): copy of v3_chain_001 + numeric final_answer_contains_any.
-# Golden mean->F = 45.97 (Warszawa -> first=Łódź -> forecast5 mean 7.76C -> 45.97F).
-# List accepts both decimal separators, +/-0.01, and int-rounded 46 variants.
+# Rounding-robust day2/day4 redesign (2026-06-18): was forecast5 full mean 7.76C
+# -> 45.97F, a precision MINE (round(7.76,1)=7.8 -> 46.04 != 45.97). Now a 4-day
+# forecast and mean(day2,day4) = Łódź base 8.0C exactly -> 46.4F, robust to 1-dp rounding.
+# Golden: Warszawa -> first=Łódź -> forecast4 -> mean(day2=7.5,day4=8.5)=8.0C -> 46.4F.
 id: v3_chain_001_arith
 category: STATEFUL
 environment: weather
 language_variant: PL_EN
-prompt: "Sprawdź pogodę w Warszawie. Następnie znajdź miasta w promieniu stu trzydziestu kilometrów od Warszawy i dla pierwszego miasta z otrzymanej listy pobierz prognozę na pięć dni. Na koniec podaj średnią temperaturę z tej prognozy w stopniach Fahrenheita."
+prompt: "Sprawdź pogodę w Warszawie. Następnie znajdź miasta w promieniu stu trzydziestu kilometrów od Warszawy i dla pierwszego miasta z otrzymanej listy pobierz prognozę na cztery dni. Na koniec podaj średnią temperaturę z drugiego i czwartego dnia tej prognozy w stopniach Fahrenheita."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -53,11 +55,12 @@ expected_final_state:
   tools_called_in_order_strict:
     - {tool: get_weather, args: {city: "Warszawa"}}
     - {tool: find_nearest_city, args: {reference_city: "Warszawa", max_distance_km: 130}}
-    - {tool: get_forecast, args: {city: "Łódź", days: 5}}
+    - {tool: get_forecast, args: {city: "Łódź", days: 4}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
-  final_answer_contains_any: ["45.97", "45,97"]
+  final_answer_contains_any: ["46.4", "46,4"]
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "Normalise Polish numerals: 'stu trzydziestu' to 130, 'pięć' to 5."
+  - "Normalise Polish numerals: 'stu trzydziestu' to 130, 'cztery' to 4."
   - "Use the FIRST city returned by find_nearest_city, not the nearest by distance."
+  - "Average the 2nd and 4th forecast day; golden is rounding-robust (mean = 8.0C exactly)."

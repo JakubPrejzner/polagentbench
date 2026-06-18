@@ -1,10 +1,14 @@
 # v3 hard chain EN 005 (arith): copy of en_005 + numeric final_answer_contains_any.
-# Golden mean->F = 40.55 (Stockholm forecast4 mean 4.75C -> 40.55F).
+# Rounding-robust day2/day4 redesign (2026-06-18): was Stockholm forecast4 full mean
+# 4.75C -> 40.55F, a precision MINE; Stockholm's base also gives whole-°F 41.0 under
+# day2/day4. City moved to Helsinki (3.0C); mean(day2,day4) of a 4-day forecast =
+# 3.0C exactly -> 37.4F, robust to 1-dp rounding (days stays 4).
+# Golden: Helsinki -> forecast4 -> mean(day2=2.5,day4=3.5)=3.0C -> 37.4F.
 id: v3_chain_en_005_arith
 category: STATEFUL
 environment: weather
 language_variant: EN_EN
-prompt: "Check the weather in Stockholm, then get the forecast for the next four days, and finally give the average temperature of that forecast converted to degrees Fahrenheit."
+prompt: "Check the weather in Helsinki, then get the forecast for the next four days, and finally give the average of the second and fourth day's forecast temperatures converted to degrees Fahrenheit."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -50,11 +54,12 @@ available_tools:
 initial_state_path: states/empty.json
 expected_final_state:
   tools_called_in_order_strict:
-    - {tool: get_weather, args: {city: "Stockholm"}}
-    - {tool: get_forecast, args: {city: "Stockholm", days: 4}}
+    - {tool: get_weather, args: {city: "Helsinki"}}
+    - {tool: get_forecast, args: {city: "Helsinki", days: 4}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
-  final_answer_contains_any: ["40.55", "40,55"]
+  final_answer_contains_any: ["37.4", "37,4"]
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "Average all four forecast days, then convert the mean to Fahrenheit."
+  - "Average the 2nd and 4th forecast days, then convert that mean to Fahrenheit."
+  - "Golden is rounding-robust: the day2/day4 mean is the exact integer base (3.0), so any rounding yields 37.4°F."

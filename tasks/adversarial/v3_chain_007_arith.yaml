@@ -1,10 +1,13 @@
 # v3 hard chain 007 (arith): copy of v3_chain_007 + numeric final_answer_contains_any.
-# Golden mean->F = 46.85 (Warszawa(110) -> first=Płock -> forecast4 mean 8.25C -> 46.85F).
+# Rounding-robust day2/day4 redesign (2026-06-18): was forecast4 full mean 8.25C
+# -> 46.85F, a precision MINE (round(8.25,1)=8.2 -> 46.76 != 46.85). Now mean(day2,day4)
+# = Płock base 8.5C exactly -> 47.3F, robust to 1-dp rounding (days stays 4).
+# Golden: Warszawa(110) -> first=Płock -> forecast4 -> mean(day2=8.0,day4=9.0)=8.5C -> 47.3F.
 id: v3_chain_007_arith
 category: STATEFUL
 environment: weather
 language_variant: PL_EN
-prompt: "Sprawdź pogodę w Warszawie. Następnie znajdź miasta w promieniu stu dziesięciu kilometrów od Warszawy i dla pierwszego miasta z otrzymanej listy pobierz prognozę na cztery dni. Na koniec podaj średnią temperaturę z tej prognozy w stopniach Fahrenheita."
+prompt: "Sprawdź pogodę w Warszawie. Następnie znajdź miasta w promieniu stu dziesięciu kilometrów od Warszawy i dla pierwszego miasta z otrzymanej listy pobierz prognozę na cztery dni. Na koniec podaj średnią temperaturę z drugiego i czwartego dnia tej prognozy w stopniach Fahrenheita."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -54,9 +57,10 @@ expected_final_state:
     - {tool: find_nearest_city, args: {reference_city: "Warszawa", max_distance_km: 110}}
     - {tool: get_forecast, args: {city: "Płock", days: 4}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
-  final_answer_contains_any: ["46.85", "46,85"]
+  final_answer_contains_any: ["47.3", "47,3"]
   final_answer_used: true
 max_steps: 8
 constraints:
   - "Normalise Polish numerals: 'stu dziesięciu' to 110, 'cztery' to 4."
   - "Use the FIRST city returned by find_nearest_city, not the nearest by distance."
+  - "Average the 2nd and 4th forecast day; golden is rounding-robust (mean = 8.5C exactly)."

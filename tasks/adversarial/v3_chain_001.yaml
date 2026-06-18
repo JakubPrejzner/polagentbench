@@ -7,7 +7,7 @@ id: v3_chain_001
 category: STATEFUL
 environment: weather
 language_variant: PL_EN
-prompt: "Sprawdź pogodę w Warszawie. Następnie znajdź miasta w promieniu stu trzydziestu kilometrów od Warszawy i dla pierwszego miasta z otrzymanej listy pobierz prognozę na pięć dni. Na koniec podaj średnią temperaturę z tej prognozy w stopniach Fahrenheita."
+prompt: "Sprawdź pogodę w Warszawie. Następnie znajdź miasta w promieniu stu trzydziestu kilometrów od Warszawy i dla pierwszego miasta z otrzymanej listy pobierz prognozę na cztery dni. Na koniec podaj średnią temperaturę z drugiego i czwartego dnia tej prognozy w stopniach Fahrenheita."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -55,10 +55,11 @@ expected_final_state:
   tools_called_in_order_strict:
     - {tool: get_weather, args: {city: "Warszawa"}}
     - {tool: find_nearest_city, args: {reference_city: "Warszawa", max_distance_km: 130}}
-    - {tool: get_forecast, args: {city: "Łódź", days: 5}}
+    - {tool: get_forecast, args: {city: "Łódź", days: 4}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "Normalise Polish numerals: 'stu trzydziestu' to 130, 'pięć' to 5."
+  - "Normalise Polish numerals: 'stu trzydziestu' to 130, 'cztery' to 4."
   - "Use the FIRST city returned by find_nearest_city, not the nearest by distance."
+  - "Average the 2nd and 4th forecast day of the 4-day forecast."

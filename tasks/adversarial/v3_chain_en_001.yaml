@@ -1,10 +1,11 @@
 # v3 hard chain EN 001: EN_EN long chain, no find_nearest_city (graph is PL-only).
-# get_weather(Berlin)=10.0C -> get_forecast(Berlin,5) -> mean 9.76C -> 49.57F. Structure-only.
+# get_weather(Paris)=12.0C -> get_forecast(Paris,4) -> mean(day2,day4)=12.0C -> 53.6F. Structure-only.
+# City moved off Berlin (whole-°F 50.0 under day2/day4).
 id: v3_chain_en_001
 category: STATEFUL
 environment: weather
 language_variant: EN_EN
-prompt: "Check the weather in Berlin, then get the forecast for the next five days, and finally give the average temperature of that forecast converted to degrees Fahrenheit."
+prompt: "Check the weather in Paris, then get the forecast for the next four days, and finally give the average of the second and fourth day's forecast temperatures converted to degrees Fahrenheit."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -50,10 +51,10 @@ available_tools:
 initial_state_path: states/empty.json
 expected_final_state:
   tools_called_in_order_strict:
-    - {tool: get_weather, args: {city: "Berlin"}}
-    - {tool: get_forecast, args: {city: "Berlin", days: 5}}
+    - {tool: get_weather, args: {city: "Paris"}}
+    - {tool: get_forecast, args: {city: "Paris", days: 4}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "Average all five forecast days, then convert the mean to Fahrenheit."
+  - "Average the 2nd and 4th forecast days, then convert that mean to Fahrenheit."

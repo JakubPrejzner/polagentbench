@@ -6,7 +6,7 @@ id: v3_chain_005
 category: STATEFUL
 environment: weather
 language_variant: PL_EN
-prompt: "Sprawdź pogodę w Katowicach. Następnie znajdź miasta w promieniu osiemdziesięciu kilometrów od Katowic i dla pierwszego miasta z otrzymanej listy pobierz prognozę na pięć dni. Na koniec podaj średnią temperaturę z tej prognozy w stopniach Fahrenheita."
+prompt: "Sprawdź pogodę w Katowicach. Następnie znajdź miasta w promieniu osiemdziesięciu kilometrów od Katowic i dla pierwszego miasta z otrzymanej listy pobierz prognozę na cztery dni. Na koniec podaj średnią temperaturę z drugiego i czwartego dnia tej prognozy w stopniach Fahrenheita."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -54,10 +54,11 @@ expected_final_state:
   tools_called_in_order_strict:
     - {tool: get_weather, args: {city: "Katowice"}}
     - {tool: find_nearest_city, args: {reference_city: "Katowice", max_distance_km: 80}}
-    - {tool: get_forecast, args: {city: "Kraków", days: 5}}
+    - {tool: get_forecast, args: {city: "Kraków", days: 4}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "Normalise Polish numerals: 'osiemdziesięciu' to 80, 'pięć' to 5."
+  - "Normalise Polish numerals: 'osiemdziesięciu' to 80, 'cztery' to 4."
   - "Use the FIRST city returned by find_nearest_city, not the nearest by distance."
+  - "Average the 2nd and 4th forecast day of the 4-day forecast."

@@ -1,10 +1,15 @@
 # v3 hard chain 004 (arith): copy of v3_chain_004 + numeric final_answer_contains_any.
-# Golden mean->F = 49.52 (Poznań -> first=Wrocław -> forecast3 mean 9.733C -> 49.52F).
+# Rounding-robust day2/day4 redesign (2026-06-18): was Poznań -> first=Wrocław ->
+# forecast3 full mean 9.733C -> 49.52F, a precision MINE. Poznań's only order-trap
+# neighbour is Wrocław (10.0C -> 50.0F, a ÷5 whole-°F substring hazard), so the
+# reference moved to the Łódź->Warszawa order-trap (Warszawa 130km first though
+# Płock 100km is nearer). Now mean(day2,day4) = Warszawa base 9.0C exactly -> 48.2F.
+# Golden: Łódź -> first=Warszawa -> forecast4 -> mean(day2=8.5,day4=9.5)=9.0C -> 48.2F.
 id: v3_chain_004_arith
 category: STATEFUL
 environment: weather
 language_variant: PL_EN
-prompt: "Sprawdź pogodę w Poznaniu. Następnie znajdź miasta w promieniu stu siedemdziesięciu kilometrów od Poznania i dla pierwszego miasta z otrzymanej listy pobierz prognozę na trzy dni. Na koniec podaj średnią temperaturę z tej prognozy w stopniach Fahrenheita."
+prompt: "Sprawdź pogodę w Łodzi. Następnie znajdź miasta w promieniu stu trzydziestu kilometrów od Łodzi i dla pierwszego miasta z otrzymanej listy pobierz prognozę na cztery dni. Na koniec podaj średnią temperaturę z drugiego i czwartego dnia tej prognozy w stopniach Fahrenheita."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -50,13 +55,14 @@ available_tools:
 initial_state_path: states/empty.json
 expected_final_state:
   tools_called_in_order_strict:
-    - {tool: get_weather, args: {city: "Poznań"}}
-    - {tool: find_nearest_city, args: {reference_city: "Poznań", max_distance_km: 170}}
-    - {tool: get_forecast, args: {city: "Wrocław", days: 3}}
+    - {tool: get_weather, args: {city: "Łódź"}}
+    - {tool: find_nearest_city, args: {reference_city: "Łódź", max_distance_km: 130}}
+    - {tool: get_forecast, args: {city: "Warszawa", days: 4}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
-  final_answer_contains_any: ["49.52", "49,52"]
+  final_answer_contains_any: ["48.2", "48,2"]
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "Normalise Polish numerals: 'stu siedemdziesięciu' to 170, 'trzy' to 3."
+  - "Normalise Polish numerals: 'stu trzydziestu' to 130, 'cztery' to 4."
   - "Use the FIRST city returned by find_nearest_city, not the nearest by distance."
+  - "Average the 2nd and 4th forecast day; golden is rounding-robust (mean = 9.0C exactly)."

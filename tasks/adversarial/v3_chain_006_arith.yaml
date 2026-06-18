@@ -1,10 +1,12 @@
 # v3 hard chain 006 (arith): copy of v3_chain_006 + numeric final_answer_contains_any.
-# Golden = 50.0 (Wrocław 10.0C -> 50.0F).
+# Substring-hazard fix (2026-06-18): was Wrocław 10.0C -> 50.0F, a ÷5 whole-°F golden
+# a model would write as "50" (lacking the ".0"), causing false fails. City moved to
+# Gdańsk 7.0C -> 44.6F, a clean non-whole golden. Single-temp convert (no forecast).
 id: v3_chain_006_arith
 category: TOOL_SELECTION
 environment: weather
 language_variant: PL_EN
-prompt: "Sprawdź pogodę we Wrocławiu i przelicz tę temperaturę na stopnie Fahrenheita."
+prompt: "Sprawdź pogodę w Gdańsku i przelicz tę temperaturę na stopnie Fahrenheita."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -50,10 +52,11 @@ available_tools:
 initial_state_path: states/empty.json
 expected_final_state:
   tools_called_in_order_strict:
-    - {tool: get_weather, args: {city: "Wrocław"}}
+    - {tool: get_weather, args: {city: "Gdańsk"}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
-  final_answer_contains_any: ["50.0", "50,0"]
+  final_answer_contains_any: ["44.6", "44,6"]
   final_answer_used: true
 max_steps: 6
 constraints:
+  - "Normalise Polish city inflection: 'Gdańsku' to 'Gdańsk'."
   - "Convert the Celsius reading from get_weather, do not invent a value."
