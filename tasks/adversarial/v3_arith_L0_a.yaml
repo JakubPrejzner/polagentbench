@@ -1,17 +1,20 @@
-# v3 arith ladder — L0 (zero tools) / instance a (Łódź numbers).
-# Axis: the SAME arithmetic operation at every rung (mean of 5 temps -> °F);
-# rungs differ ONLY in tool scaffolding. L0 hands the model the five numbers
-# verbatim (they are the exact Łódź get_forecast days=5 values), so no tool
-# call is needed — pure arithmetic + direct final_answer.
-# Golden: mean(6.8,7.2,7.8,8.2,8.8) = 7.76 C -> *9/5+32 = 45.97 F.
-# Identical golden to v3_arith_L1_a / L2_a / L3_a (and v3_chain_001_arith).
-# Tool block is kept byte-identical to v3_chain_001 on purpose: the schema
-# load in context is a constant across rungs; only required tool USE varies.
+# v3 arith ladder — L0 (zero tools) / instance a (Łódź).
+# Rounding-robust redesign (2026-06-18, day2/day4 pattern, same as en_013
+# commit ef122d4): the old golden was the full 5-day mean (7.76 C -> 45.97 F),
+# which ended in .76 and required full precision — a model that rounded the
+# mean to 1 dp got a different F and falsely failed. The arith is now the mean
+# of day 2 and day 4 of a 4-DAY forecast: offsets -0.5/+0.5 cancel, so the mean
+# equals the Łódź base 8.0 C EXACTLY -> 46.4 F, identical for 8.0 and round(8.0,1).
+# L0 hands the model the four 4-day forecast values verbatim (the exact Łódź
+# get_forecast days=4 readings); no tool call is needed.
+# Golden: mean(day2=7.5, day4=8.5) = 8.0 C -> *9/5+32 = 46.4 F.
+# Identical golden to v3_arith_L1_a / L2_a / L3_a.
+# Tool block byte-identical to v3_chain_001 (constant schema across rungs).
 id: v3_arith_L0_a
 category: STATEFUL
 environment: weather
 language_variant: PL_EN
-prompt: "Oto 5 odczytów temperatury: 6.8, 7.2, 7.8, 8.2, 8.8°C. Podaj średnią w °F."
+prompt: "Oto prognoza temperatury na 4 dni: 7.0, 7.5, 8.0, 8.5°C. Podaj średnią z drugiego i czwartego dnia w °F."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -57,8 +60,10 @@ available_tools:
 initial_state_path: states/empty.json
 expected_final_state:
   no_tool_calls: true
-  final_answer_contains_any: ["45.97", "45,97"]
+  final_answer_contains_any: ["46.4", "46,4"]
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "No tool call should be necessary; compute the mean and C->F conversion directly."
+  - "No tool call should be necessary; average the 2nd and 4th readings and convert C->F directly."
+  - "Average only the 2nd and 4th readings (7.5 and 8.5), not all four."
+  - "Golden is rounding-robust: the day2/day4 mean is exact (8.0 C), so any 1-dp rounding yields the same 46.4 F."

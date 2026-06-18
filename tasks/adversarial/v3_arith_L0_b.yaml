@@ -1,14 +1,21 @@
-# v3 arith ladder — L0 (zero tools) / instance b (Berlin numbers).
-# Numbers are the exact Berlin get_forecast days=5 values; no tool needed.
-# Golden: mean(8.8,9.2,9.8,10.2,10.8) = 9.76 C -> *9/5+32 = 49.57 F.
-# Identical golden to v3_arith_L1_b / L2_b / L3_b (L3_b reaches the same
-# value via Poznań->Wrocław, whose base temp equals Berlin's 10.0 C).
+# v3 arith ladder — L0 (zero tools) / instance b (Warszawa).
+# Rounding-robust redesign (2026-06-18, day2/day4 pattern, same as en_013
+# commit ef122d4): the old golden was the full 5-day mean of Berlin (9.76 C ->
+# 49.57 F), ending in .76 and requiring full precision. Instance b is now the
+# Warszawa instance (base 9.0): the arith is the mean of day 2 and day 4 of a
+# 4-DAY forecast (offsets -0.5/+0.5 cancel) -> mean = 9.0 C EXACTLY -> 48.2 F.
+# Base moved off 10.0 (Berlin) on purpose: 10.0 -> 50.0 F is a whole number,
+# which a model may write as "50" and falsely miss the "50.0" substring.
+# L0 hands the model the four 4-day forecast values verbatim (the exact
+# Warszawa get_forecast days=4 readings); no tool call is needed.
+# Golden: mean(day2=8.5, day4=9.5) = 9.0 C -> *9/5+32 = 48.2 F.
+# Identical golden to v3_arith_L1_b / L2_b / L3_b.
 # Tool block byte-identical to v3_chain_001 (constant schema across rungs).
 id: v3_arith_L0_b
 category: STATEFUL
 environment: weather
 language_variant: PL_EN
-prompt: "Oto 5 odczytów temperatury: 8.8, 9.2, 9.8, 10.2, 10.8°C. Podaj średnią w °F."
+prompt: "Oto prognoza temperatury na 4 dni: 8.0, 8.5, 9.0, 9.5°C. Podaj średnią z drugiego i czwartego dnia w °F."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -54,8 +61,10 @@ available_tools:
 initial_state_path: states/empty.json
 expected_final_state:
   no_tool_calls: true
-  final_answer_contains_any: ["49.57", "49,57"]
+  final_answer_contains_any: ["48.2", "48,2"]
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "No tool call should be necessary; compute the mean and C->F conversion directly."
+  - "No tool call should be necessary; average the 2nd and 4th readings and convert C->F directly."
+  - "Average only the 2nd and 4th readings (8.5 and 9.5), not all four."
+  - "Golden is rounding-robust: the day2/day4 mean is exact (9.0 C), so any 1-dp rounding yields the same 48.2 F."

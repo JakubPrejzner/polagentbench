@@ -1,7 +1,8 @@
 # v3 arith ladder — L1 (one tool) / instance a (Łódź).
-# One get_forecast call returns the same five numbers L0_a states verbatim
-# ([6.8,7.2,7.8,8.2,8.8]); the model computes mean and C->F itself.
-# Golden: mean = 7.76 C -> 45.97 F. Identical golden to L0_a / L2_a / L3_a.
+# One get_forecast(days=4) call returns the four numbers L0_a states verbatim
+# ([7.0,7.5,8.0,8.5]); the model selects day 2 and day 4, means them and does
+# C->F itself. Rounding-robust day2/day4 redesign (see L0_a header).
+# Golden: mean(day2=7.5, day4=8.5) = 8.0 C -> 46.4 F. Identical to L0_a/L2_a/L3_a.
 # Oracle separates failure modes: wrong_tool_order = orchestration,
 # wrong_final_answer = arithmetic.
 # Tool block byte-identical to v3_chain_001 (constant schema across rungs).
@@ -9,7 +10,7 @@ id: v3_arith_L1_a
 category: STATEFUL
 environment: weather
 language_variant: PL_EN
-prompt: "Pobierz prognozę dla Łodzi na 5 dni i podaj średnią temperaturę w °F."
+prompt: "Pobierz prognozę dla Łodzi na 4 dni i podaj średnią temperaturę z drugiego i czwartego dnia w °F."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -55,10 +56,11 @@ available_tools:
 initial_state_path: states/empty.json
 expected_final_state:
   tools_called_in_order_strict:
-    - {tool: get_forecast, args: {city: "Łódź", days: 5}}
-  final_answer_contains_any: ["45.97", "45,97"]
+    - {tool: get_forecast, args: {city: "Łódź", days: 4}}
+  final_answer_contains_any: ["46.4", "46,4"]
   final_answer_used: true
 max_steps: 8
 constraints:
   - "Normalise the inflected city name: 'dla Łodzi' to nominative 'Łódź'."
-  - "Mean and C->F conversion are computed by the model itself."
+  - "Average the 2nd and 4th day of the 4-day forecast; mean and C->F conversion are computed by the model itself."
+  - "Golden is rounding-robust: the day2/day4 mean is exact (8.0 C), so any 1-dp rounding yields the same 46.4 F."

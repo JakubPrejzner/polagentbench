@@ -1,15 +1,15 @@
 # v3 arith ladder — L3 (full 4-tool chain) / instance c (Katowice->Kraków).
-# Order trap: Katowice r=80 returns [Kraków,Gliwice,Sosnowiec,Bielsko-Biała]
-# in graph order; Kraków 80 km is FIRST though Sosnowiec 15 km is nearest.
-# get_weather -> find_nearest_city -> get_forecast(Kraków,5) -> mean ->
-# convert_temperature.
-# Golden: mean(6.2,6.8,7.2,7.8,8.2) = 7.24 C -> 45.03 F.
+# Top rung = maximal scaffolding. get_weather -> find_nearest_city (order trap:
+# Katowice r=80 returns [Kraków,Gliwice,Sosnowiec,Bielsko-Biała] in graph order;
+# Kraków 80 km is FIRST though Sosnowiec 15 km is nearest) -> get_forecast(Kraków,4)
+# -> mean(day2,day4) -> convert_temperature. Rounding-robust day2/day4 redesign.
+# Golden: mean(day2=7.0, day4=8.0) = 7.5 C -> 45.5 F.
 # Identical golden to L0_c / L1_c / L2_c — only scaffolding load differs.
 id: v3_arith_L3_c
 category: STATEFUL
 environment: weather
 language_variant: PL_EN
-prompt: "Sprawdź pogodę w Katowicach. Następnie znajdź miasta w promieniu osiemdziesięciu kilometrów od Katowic i dla pierwszego miasta z otrzymanej listy pobierz prognozę na pięć dni. Na koniec podaj średnią temperaturę z tej prognozy w stopniach Fahrenheita."
+prompt: "Sprawdź pogodę w Katowicach. Następnie znajdź miasta w promieniu osiemdziesięciu kilometrów od Katowic i dla pierwszego miasta z otrzymanej listy pobierz prognozę na cztery dni. Na koniec podaj średnią temperaturę z drugiego i czwartego dnia tej prognozy w stopniach Fahrenheita."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -57,11 +57,12 @@ expected_final_state:
   tools_called_in_order_strict:
     - {tool: get_weather, args: {city: "Katowice"}}
     - {tool: find_nearest_city, args: {reference_city: "Katowice", max_distance_km: 80}}
-    - {tool: get_forecast, args: {city: "Kraków", days: 5}}
+    - {tool: get_forecast, args: {city: "Kraków", days: 4}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
-  final_answer_contains_any: ["45.03", "45,03"]
+  final_answer_contains_any: ["45.5", "45,5"]
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "Normalise Polish numerals: 'osiemdziesięciu' to 80, 'pięć' to 5."
+  - "Normalise Polish numerals: 'osiemdziesięciu' to 80, 'cztery' to 4."
   - "Use the FIRST city returned by find_nearest_city, not the nearest by distance."
+  - "Average the 2nd and 4th day of the forecast; golden is rounding-robust (mean is exactly 7.5 C)."

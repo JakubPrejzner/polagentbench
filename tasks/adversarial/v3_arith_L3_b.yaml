@@ -1,15 +1,17 @@
-# v3 arith ladder — L3 (full 4-tool chain) / instance b (Poznań->Wrocław).
-# Berlin is unreachable via the neighbour graph, so instance b reaches the
-# SAME golden value through Wrocław, whose base temp (10.0 C) equals
-# Berlin's: forecast(5) = [8.8,9.2,9.8,10.2,10.8] in both cities.
-# Order trap: Poznań r=165 returns [Wrocław,Bydgoszcz,Zielona Góra] in
-# graph order; Wrocław 165 km is FIRST though Bydgoszcz 130 km is nearer.
-# Golden: mean = 9.76 C -> 49.57 F. Identical golden to L0_b / L1_b / L2_b.
+# v3 arith ladder — L3 (full 4-tool chain) / instance b (Łódź->Warszawa).
+# Top rung = maximal scaffolding. get_weather -> find_nearest_city (order trap:
+# Łódź r=130 returns [Warszawa,Częstochowa,Płock] in graph order; Warszawa
+# 130 km is FIRST though Płock 100 km is nearer) -> get_forecast(Warszawa,4) ->
+# mean(day2,day4) -> convert_temperature. Rounding-robust day2/day4 redesign.
+# Mirror of instance a: Warszawa<->Łódź are mutual 130 km neighbours, so a
+# (Warszawa->Łódź, base 8.0) and b (Łódź->Warszawa, base 9.0) swap roles.
+# Golden: mean(day2=8.5, day4=9.5) = 9.0 C -> 48.2 F.
+# Identical golden to L0_b / L1_b / L2_b — only scaffolding load differs.
 id: v3_arith_L3_b
 category: STATEFUL
 environment: weather
 language_variant: PL_EN
-prompt: "Sprawdź pogodę w Poznaniu. Następnie znajdź miasta w promieniu stu sześćdziesięciu pięciu kilometrów od Poznania i dla pierwszego miasta z otrzymanej listy pobierz prognozę na pięć dni. Na koniec podaj średnią temperaturę z tej prognozy w stopniach Fahrenheita."
+prompt: "Sprawdź pogodę w Łodzi. Następnie znajdź miasta w promieniu stu trzydziestu kilometrów od Łodzi i dla pierwszego miasta z otrzymanej listy pobierz prognozę na cztery dni. Na koniec podaj średnią temperaturę z drugiego i czwartego dnia tej prognozy w stopniach Fahrenheita."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -55,13 +57,14 @@ available_tools:
 initial_state_path: states/empty.json
 expected_final_state:
   tools_called_in_order_strict:
-    - {tool: get_weather, args: {city: "Poznań"}}
-    - {tool: find_nearest_city, args: {reference_city: "Poznań", max_distance_km: 165}}
-    - {tool: get_forecast, args: {city: "Wrocław", days: 5}}
+    - {tool: get_weather, args: {city: "Łódź"}}
+    - {tool: find_nearest_city, args: {reference_city: "Łódź", max_distance_km: 130}}
+    - {tool: get_forecast, args: {city: "Warszawa", days: 4}}
     - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
-  final_answer_contains_any: ["49.57", "49,57"]
+  final_answer_contains_any: ["48.2", "48,2"]
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "Normalise Polish numerals: 'stu sześćdziesięciu pięciu' to 165, 'pięć' to 5."
+  - "Normalise Polish numerals: 'stu trzydziestu' to 130, 'cztery' to 4."
   - "Use the FIRST city returned by find_nearest_city, not the nearest by distance."
+  - "Average the 2nd and 4th day of the forecast; golden is rounding-robust (mean is exactly 9.0 C)."

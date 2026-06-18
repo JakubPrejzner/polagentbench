@@ -1,13 +1,14 @@
-# v3 arith ladder — L1 (one tool) / instance b (Berlin).
-# One get_forecast call returns the same five numbers L0_b states verbatim
-# ([8.8,9.2,9.8,10.2,10.8]); the model computes mean and C->F itself.
-# Golden: mean = 9.76 C -> 49.57 F. Identical golden to L0_b / L2_b / L3_b.
+# v3 arith ladder — L1 (one tool) / instance b (Warszawa).
+# One get_forecast(days=4) call returns the four numbers L0_b states verbatim
+# ([8.0,8.5,9.0,9.5]); the model selects day 2 and day 4, means them and does
+# C->F itself. Rounding-robust day2/day4 redesign (see L0_b header).
+# Golden: mean(day2=8.5, day4=9.5) = 9.0 C -> 48.2 F. Identical to L0_b/L2_b/L3_b.
 # Tool block byte-identical to v3_chain_001 (constant schema across rungs).
 id: v3_arith_L1_b
 category: STATEFUL
 environment: weather
 language_variant: PL_EN
-prompt: "Pobierz prognozę dla Berlina na 5 dni i podaj średnią temperaturę w °F."
+prompt: "Pobierz prognozę dla Warszawy na 4 dni i podaj średnią temperaturę z drugiego i czwartego dnia w °F."
 available_tools:
   - name: get_weather
     description: "Get current weather for a city."
@@ -53,10 +54,11 @@ available_tools:
 initial_state_path: states/empty.json
 expected_final_state:
   tools_called_in_order_strict:
-    - {tool: get_forecast, args: {city: "Berlin", days: 5}}
-  final_answer_contains_any: ["49.57", "49,57"]
+    - {tool: get_forecast, args: {city: "Warszawa", days: 4}}
+  final_answer_contains_any: ["48.2", "48,2"]
   final_answer_used: true
 max_steps: 8
 constraints:
-  - "Normalise the inflected city name: 'dla Berlina' to nominative 'Berlin'."
-  - "Mean and C->F conversion are computed by the model itself."
+  - "Normalise the inflected city name: 'dla Warszawy' to nominative 'Warszawa'."
+  - "Average the 2nd and 4th day of the 4-day forecast; mean and C->F conversion are computed by the model itself."
+  - "Golden is rounding-robust: the day2/day4 mean is exact (9.0 C), so any 1-dp rounding yields the same 48.2 F."
