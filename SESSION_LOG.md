@@ -299,3 +299,61 @@ nierówne kubełki po rebalansie miast/dni — dominująca podłoga to rodzina l
 
 ### Box
 Instancja 41522333 — self-auth destroy próbowany na końcu (znana odchyłka tego obrazu: 401, rc=0 mimo błędu).
+
+## 2026-07-11 — 11B dense-curve: Bielik-11B-v3.0-Instruct, 6 quantów × repair off/on × 67 tasków
+
+Pierwszy run 11B (dense, nie Minitron): DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF — JEDNO źródło
+statycznych quantów Q8_0→Q2_K, zero requantize. Box 4090/CUDA 12.6 (instancja 42274707, host 831842528a85;
+box NIE-świeży: pre-provisioned Q8 gguf + leftover lexpilot-demo, nietknięty), recipe cu124 wheel 0.3.19 +
+cu12 runtime libs. HEAD a023c3b clean (67 YAML), pytest 204, smoke PL koherentny na KAŻDYM quancie (nawet Q2).
+T=0/seed42, chatml; stemple commit_hash=a023c3b 12/12; oracle evaluate()==summary.num_passed 12/12; scp po
+każdym quancie. Wyniki: results/v3_11b_2026-06-18/{q8,q6,q5,q4,q3,q2}_{no_repair,repair}/ + analysis/
+{ANALYSIS.md, per_task_matrix.csv, analyze.py} + box_logs/. Gate easy-Q8 off 14/15=0.9333 — ta sama liczba
+i ten sam fail (adv_005) co 7B.
+
+### Krzywa (easy | hard | all, off→on)
+Q8_0 0.933 | 0.769 | 0.806 (on =) · Q6_K 1.000 | 0.788→0.808 | 0.836→0.851 (PEAK) · Q5_K_M 0.867 |
+0.712→0.731 | 0.746→0.761 · Q4_K_M 0.867 | 0.442→0.519 | 0.537→0.597 (DIP) · Q3_K_M 0.800 | 0.692 |
+0.716 (Δ0) · Q2_K 0.133 | 0.019→0.058 | 0.045→0.075 (COLLAPSE).
+11B >> 7B clean na każdym wspólnym quancie POZA Q2 (7B all-off: .448/.507/.463/.149) — Q2 11B GORSZY od 7B.
+
+### ★ DIP Q4 zamiast peaku Q4 — obustronnie SIG
+Q5>Q4 p=.0043 (hard 17:3, p=.0026) i Q3>Q4 p=.029 (hard 17:4, p=.0072) — 7B-owy „Q4 peak" ODWRACA się w dip.
+14 tasków Q4-specyficznych (fail@Q4-off, pass@Q5-off i @Q3-off): dominują PL_EN 4-tool order-trapy, tagi
+wrong_tool_order + final_answer_missing/unknown_action. Największy efekt repair na krzywej: +4 (p=.125 ns),
+ratuje 3/14; runner timeouts Q4 off=14 vs 3-6 u sąsiadów. Wygląda na idiosynkrazję artefaktu Q4_K_M DevQuasar
+dla 11B, nie własność 4-bit per se — do papera: jeden punkt siatki ≠ kształt krzywej.
+
+### Klif Q3→Q2 jak w 7B clean, ale kolaps o INNEJ sygnaturze
+Q3→Q2 p<.0001 (46:1). Q2 off: 64/67 faili; wrong_tool_order:46, wrong_final_answer:21, unknown_action:13;
+śr. kroków 2.8 (pozostałe quanty ~4.4-4.7), max_steps tylko 8/67, avg tokens 5397 < Q8 6729 → SZYBKA ŚMIERĆ
+(malformed/unknown action na starcie, brak recovery), NIE pętle-do-max_steps jak 7B (~2× tokens). Smoke Q2
+nadal koherentny — kolaps jest agentic-specific, nie językowy.
+
+### Tryby porażki ARITH+DRABINA n=25 (off; klasyfikator 1:1 z clean 7B; ROUNDING_MINE=0 wszędzie ✓)
+11B fails/PS/GA/TF: Q8 11/5/4/2 · Q6 10/3/5/2 · Q5 11/4/6/1 · Q4 17/9/7/1 · Q3 10/0/7/3 · Q2 25/5/19/1.
+7B clean: Q8 21/16/4/1 · Q4 21/7/13/1 · Q3 20/5/4/11 · Q2 25/6/15/4. Progresja 7B (Q8→shape, Q4→arith,
+Q3→fixation, Q2→collapse) NIE reprodukuje się czysto w 11B: top-quanty mieszają PS/GA przy niskim TF,
+Q4→shape-spike (PS=9), Q3→czysty GENUINE_ARITH (PS=0!), Q2→GA nominalnie (klasyfikator ARITH-first; realnie
+total orchestration collapse). Quantyzacja 11B przesuwa tryb porażki ŁAGODNIEJ niż w 7B.
+
+### Drabina L0–L3 — GRADIENT ODWRÓCONY (arith floor tylko na L0)
+off (Q8/Q6/Q5/Q4/Q3/Q2): L0 0/0/0/0/0/0 z 3 · L1 0/1/1/0/3/0 · L2 1/0/0/0/1/0 · L3 3/3/3/0/2/0.
+11B rozwiązuje PEŁNY łańcuch L3 (3/3 na Q8/Q6/Q5), a pada na L0 bez narzędzi — odwrotność hipotezy „tonie
+w scaffoldingu"; 7B miał 0/3 na każdym poziomie. Arith w izolacji (L0) = podłoga niezależna od quanta.
+Drabina łącznie: Q8/Q6/Q5 4/12, Q3 6/12 (najlepsza!), Q4 i Q2 0/12. Repair: tylko Q4-L3 0→2.
+
+### Twin matched n=10 (struct/arith, off)
+Q8 1.00/.80 · Q6 1.00/.90 · Q5 .90/.80 · Q4 .50/.60 (jedyna inwersja) · Q3 .90/.70 · Q2 .00/.00
+(7B clean: .20/.20 · .40/.20 · .40/.20 · .10/.00). Struktura ≥ arith poza dipem Q4; headroom 11B vs 7B ogromny.
+
+### Length×język (chains n=40, off, Q8→Q2)
+short PL 1.00/1.00/1.00/.89/.78/.00 · short EN .78/.89/.67/.78/.89/.00 · long PL 1.00/.92/.92/.31/.77/.08 ·
+long EN .78/.89/.67/.44/.56/.00. 7B-owa inwersja „EN>PL na long" NIE występuje na zdrowych quantach 11B
+(PL≥EN na Q8/Q6/Q5 również na long); pojawia się DOPIERO w dipie Q4 (long PL .31 < EN .44) → inwersja gapu
+była sygnaturą degradacji modelu, nie własnością suity.
+
+### Box
+Self-auth destroy ZADZIAŁAŁ na tym obrazie: `vastai destroy instance 42274707` → „destroying instance …",
+bez 401 w outpucie; reconnect po 20 s → connection refused. (Refused ≠ dowód — potwierdzić w panelu, że
+instancja zniknęła z listy.) Logi runów i skrypty zabezpieczone w results/v3_11b_2026-06-18/box_logs/.
