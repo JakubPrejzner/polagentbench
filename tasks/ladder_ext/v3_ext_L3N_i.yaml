@@ -1,0 +1,73 @@
+# v3 extended ladder — L3N (four calls, GRAPH-FREE) / instance i (Bielsko-Biała).
+# Second L3 arm: same 4-call depth as L3T but no find_nearest_city, so it is not
+# capped by the 9-source neighbour graph. Chain: get_weather -> get_forecast(4) ->
+# convert_temperature(day2) -> convert_temperature(day4); the model averages the two
+# Fahrenheit values in final_answer. Conversion is affine, so
+# mean(F(5.5), F(6.5)) = mean(41.9, 43.7) = 42.8
+# = F(6) — verified on the live env to the cent, both paths agree.
+# The prompt MANDATES two separate conversions, so a single convert of the mean is a
+# genuine orchestration deviation (wrong_tool_order), not a golden mine.
+# Identical golden (42.8 F) to v3_ext_L0_i / L1_i / L2_i / L3N_i — only scaffolding load differs.
+# Tool block byte-identical to v3_chain_001 (constant schema across rungs).
+id: v3_ext_L3N_i
+category: STATEFUL
+environment: weather
+language_variant: PL_EN
+prompt: "Sprawdź pogodę w Bielsku-Białej. Następnie pobierz prognozę dla Bielska-Białej na cztery dni. Przelicz temperaturę drugiego dnia na stopnie Fahrenheita narzędziem convert_temperature, a potem tym samym narzędziem przelicz temperaturę czwartego dnia. Na koniec podaj średnią z tych dwóch wartości w stopniach Fahrenheita."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  tools_called_in_order_strict:
+    - {tool: get_weather, args: {city: "Bielsko-Biała"}}
+    - {tool: get_forecast, args: {city: "Bielsko-Biała", days: 4}}
+    - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
+    - {tool: convert_temperature, args: {from_unit: "celsius", to_unit: "fahrenheit"}}
+  final_answer_contains_any: ["42.8", "42,8"]
+  final_answer_used: true
+max_steps: 8
+constraints:
+  - "Normalise the inflected city name: 'w Bielsku-Białej' / 'dla Bielska-Białej' to nominative 'Bielsko-Biała'."
+  - "Normalise the Polish numeral: 'cztery' to 4."
+  - "Convert day 2 and day 4 SEPARATELY with convert_temperature, then average the two F values."
+  - "Golden is rounding-robust: the day2/day4 mean is exact (6 C), so any 1-dp rounding yields the same 42.8 F."
