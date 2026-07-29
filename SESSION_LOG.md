@@ -357,3 +357,92 @@ była sygnaturą degradacji modelu, nie własnością suity.
 Self-auth destroy ZADZIAŁAŁ na tym obrazie: `vastai destroy instance 42274707` → „destroying instance …",
 bez 401 w outpucie; reconnect po 20 s → connection refused. (Refused ≠ dowód — potwierdzić w panelu, że
 instancja zniknęła z listy.) Logi runów i skrypty zabezpieczone w results/v3_11b_2026-06-18/box_logs/.
+
+---
+
+## 2026-07-29 — RUN NOCNY: PLLuM + extended ladder + wariancja (HEAD e584b38, box 46147751, RTX 4090)
+
+Autonomiczny run nocny 22:53–02:39. **52 runy zapisane** (26 z planu + 2 bramkowe + 24 bonusowe),
+wszystkie zescp-owane i zweryfikowane przed skasowaniem modelu. Pełny przebieg minutowy z każdą
+decyzją: `results/NIGHT_LOG.txt` (200 linii, 7 ALERTÓW). Wszystkie liczby to `num_passed/num_tasks`
+z `summary.json` (oracle), nie flaga `trajectory.success`.
+
+Środowisko: RTX 4090 24 GB, CUDA 12.6, llama-cpp-python **0.3.19** (prebuilt cu124 + cu12 runtime libs),
+n_ctx 8192, T=0 seed 42 poza FAZĄ 5. Bramki FAZY 0 zielone: HEAD czysty, 67 adversarial + 46 ladder_ext,
+pytest 204. VRAM 24 GB ≥ 20 → plan pełny. `src/` i `tasks/` nietknięte przez całą noc.
+
+### FAZA 1 — PLLuM-8B: BRAMKA C NIEZDANA, faza pominięta regułą
+Bramka A czysta (poprawna polszczyzna, `finish=stop`, zero artefaktów `llama-3`). Bramka B: peak
+**2308** prompt-tokenów na najdłuższym łańcuchu suity (10-krokowy `v3_chain_en_013`; trzy 8-krokowe L3
+dały 1130–1474) → poniżej progu 7000, **n_ctx został 8192**, żadnej asymetrii wobec Bielika.
+Bramka C (easy 15): **0.400 (6/15) off, 0.467 (7/15) on** — obie poniżej 0.5.
+
+Zdiagnozowane przed wykonaniem reguły — **to nie jest wada konfiguracji**: zrenderowany przez handler
+`llama-3` prompt zawiera nienaruszony słownik akcji (`call_tool`/`final_answer`) i pełną listę narzędzi
+(zweryfikowane inspekcją `res.prompt`). Model mimo to emituje `{"action":"send_weather_alert"}` zamiast
+`{"action":"call_tool","tool":"send_weather_alert"}` → `unknown_action`. Następnie **halucynuje sukces**:
+`final_answer` twierdzi, że alert wysłano, przy `alerts_sent=[]`. Stąd rozjazd `trajectory.success` 14/15
+vs oracle 6/15 — kolejne potwierdzenie, że flaga runnera przeszacowuje i kanoniczny jest oracle.
+
+### FAZA 2 — ladder_ext na 11B (8 runów) — ranking zanieczyszczony typowaniem JSON
+off/on: **Q8_0 13/13 · Q4_K_M 1/7 · Q3_K_M 32/32 · Q2_K 0/0** (z 46).
+
+Q3 bije Q8 o 19 zadań, ale **nie należy tego czytać jako miary zdolności**. 100 % naruszeń schematu to
+JEDEN wzorzec: model zwraca `{"action":"final_answer","answer": 54.2}` — **liczbę zamiast stringa** —
+i pydantic odrzuca (`tagged-union[CallTool,FinalAnswer]`, `answer: string_type`). Skala: Q8_0 = **101
+naruszeń w 23 z 46 zadań** (~70 % jego porażek), Q4_K_M = 119 w 27 zadaniach, Q3_K_M = **0**. `repair`
+tego nie naprawia (q8_repair: identyczne 101, wynik bez zmian).
+**Ostrzeżenie:** to NIE są darmowe punkty. Kontrprzykład `v3_ext_L1_b`: golden 48.2, Q8 odpowiedział 54.2
+— liczba też merytorycznie zła. Podział SKRÓT (format) vs PRAWDZIWY (treść) = etap analizy; `raw_model_output`
+każdego kroku jest zachowany, więc tolerancyjne przeliczenie zrobi się offline, **bez powtarzania na GPU**.
+
+### FAZA 3 — ladder_ext na 7B (8 runów)
+off/on: **Q8_0 2/3 · Q4_K_M 1/9 · Q3_K_M 2/2 · Q2_K 0/0** (z 46). Q3_K_M i Q2_K przez requantize z Q8_0
+(`llama-quantize` CPU-only, recepta z poprzednich runów). Krzywa 7B na ladderze leży płasko przy zerze —
+brak odpowiednika skoku Q3, który widać na 11B.
+
+### FAZA 4 — main suite na 7B, Q6_K i Q5_K_M (4 runy)
+off/on: **Q6_K 31/38 · Q5_K_M 35/40** (z 67). **Korekta do promptu:** repozytorium
+`speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF` **zawiera** publiczne Q6_K i Q5_K_M. Requantize byłby
+odstępstwem od metodologii oryginalnej krzywej 6-punktowej (2026-06-02), która też wzięła Q6/Q5 z release'u
+HF — użyto plików publicznych. Q5 > Q6 to kolejna niemonotoniczność, zgodna z historycznym szczytem przy Q4.
+
+### FAZA 5 — wariancja przy T=0.7 (6 runów): rozkład DWUMODALNY, nie szum
+11B, main 67, repair off:
+- **Q8_0**: seed1 **8/67** (0.119) · seed2 **49/67** (0.731) · seed3 **48/67** (0.716)
+- **Q3_K_M**: seed1 **13/67** (0.194) · seed2 **43/67** (0.642) · seed3 **51/67** (0.761)
+
+Efekt seed=1 jest **systematyczny**: zapada się na OBU kwantach niezależnie, seedy 2 i 3 na obu dają
+0.64–0.76. Mechanizm widać w błędach parsowania (Q8): seed1 `unknown_action=109`, `no_json_found=12`,
+`schema_violation=20`; seed2 odpowiednio `22 / 4 / 11`. Model wpada w tryb **wymyślania nazw akcji** —
+ten sam defekt, który zabił PLLuM na bramce C, u Bielika ujawnia się dopiero pod próbkowaniem.
+**Nie raportować średniej** (Q8: 35/67) — nie opisuje żadnego z dwóch trybów.
+Trop do sprawdzenia (hipoteza, kodu NIE zmieniano): `llama_cpp_runner.py` podaje ten sam seed do
+`create_chat_completion` przy KAŻDYM kroku pętli, a nie raz na run — pechowa wartość może utrwalać się
+przez całą trajektorię zamiast się uśredniać.
+
+### BONUS (poza planem) — pełna krzywa PLLuM-8B, 24 runy
+Uruchomiona **po** zamknięciu faz 2–5, z zapasu czasu, po niezdanej bramce C. Katalogi opisane w
+`results/v3_pllum_2026-07-29/BONUS_README.txt`, żeby nie czytać ich jako realizacji FAZY 1.
+main 67 off/on: **Q8 13/15 · Q6 12/14 · Q5 7/9 · Q4 15/17 · Q3 15/18 · Q2 1/1**.
+ladder 46 off/on: **Q8 2/2**, wszystkie pozostałe kwanty **0/0**.
+PLLuM na main trzyma się w paśmie 0.10–0.27 tam, gdzie 7B daje 0.46–0.60 — rząd wielkości niżej.
+
+### Wzorzec przekrojowy: repair działa tylko w wąskim paśmie Q4
+Ladder, zysk z `--repair`: 11B Q8 +0, **Q4 +6**, Q3 +0, Q2 +0 · 7B Q8 +1, **Q4 +8**, Q3 +0, Q2 +0.
+Powtarza się na dwóch niezależnych modelach: naprawa nie pomaga ani gdy model trzyma format (Q8/Q3),
+ani gdy jest już rozłożony (Q2) — tylko tam, gdzie psuje się składnia, a treść jeszcze żyje.
+
+### Do etapu analizy (nie robione tej nocy)
+1. Tokeny **nie są porównywalne** między Bielikiem a PLLuM (różne tokenizery) — porównania
+   międzyrodzinowe raportować w KROKACH.
+2. Fail L3N dzielić na SKRÓT i PRAWDZIWY, dwie pass raty (ścisła i tolerancyjna).
+3. `summary.json` **nie zapisuje** pól `seed` ani `temperature` na najwyższym poziomie (oba `None`) —
+   przypisanie runu do seeda idzie WYŁĄCZNIE z nazwy katalogu (`q8_seed1/2/3`).
+
+### Usterki nocy
+- **Błąd w harnessie nocnym (mój, nie w repo):** `note()` w `night/lib.sh` pisało na stdout, więc
+  `MP=$(fetch_model …)` wciągnęło linię logu do ścieżki modelu → pierwszy start FAZY 2 padł na
+  `ValueError: Model path does not exist`. Naprawione (stderr), model był pobrany poprawnie, zero
+  utraconych obliczeń.
+- Żaden run nie padł merytorycznie; 52/52 mają `summary.json`.
