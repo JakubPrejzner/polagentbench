@@ -446,3 +446,212 @@ ani gdy jest już rozłożony (Q2) — tylko tam, gdzie psuje się składnia, a 
   `ValueError: Model path does not exist`. Naprawione (stderr), model był pobrany poprawnie, zero
   utraconych obliczeń.
 - Żaden run nie padł merytorycznie; 52/52 mają `summary.json`.
+
+---
+
+## 2026-08-21 — TRZY SESJE ANALITYCZNE OD BIURKA (zero GPU, box nie istnieje)
+
+Powrót do projektu po miesiącu. Trzy sesje tego samego dnia, wszystkie wyłącznie na danych
+z dysku: `results/**/run.log`, `results/**/trajectories.jsonl`, `results/**/summary.json`,
+`tasks/**/*.yaml`. Żadnego GPU, żadnego boxa, żadnej sieci. **Skrypty odtwarzające każdą liczbę
+leżą w `analysis/`** (commit `ccc0d87`), mapa skrypt → tabela → finding jest w
+`analysis/README.md`. Tabele nie są tu kopiowane — ten wpis to decision trail, liczby produkują
+skrypty.
+
+### Sesja 1 — stan po runie nocnym i zabezpieczenie danych
+
+**Pytanie:** ile z planu nocnego 2026-07-29 faktycznie się policzyło i zostało lokalnie?
+**Skrypt:** `analysis/inventory.py`
+
+**Ustalenie: run nocny SIĘ DOKOŃCZYŁ**, wbrew założeniu, z którym wracałem. 52/52 runy mają
+kompletny `summary.json` z `commit_hash=e584b38`, `trajectories.jsonl` nie są urwane (ostatnia
+linia parsuje się jako JSON w 52/52), a każda para `NN/MM` zgadza się w obie strony z
+`results/NIGHT_LOG.txt` (200 linii, 52 linie wynikowe). Bramki bez zmian: 67 adversarial,
+46 ladder_ext, pytest 204.
+
+★ **Jedyne realne ryzyko dnia było operacyjne, nie naukowe:** `results/` jest w `.gitignore`
+(linia 55), a repo nie miało remote'a — 29 MB wyników istniało dokładnie w jednym miejscu
+i zwykły `git clean -xfd` skasowałby je bez śladu. Domknięte tego samego dnia, patrz
+"Stan po sesji".
+
+### Sesja 2 — trzy anomalie z runu nocnego
+
+#### Anomalia 1 — PLLuM 0.194 przy Q8, gdy Bielik-11B daje 0.806
+
+**Pytanie:** zepsuty szablon czy model faktycznie tak słabo radzi sobie z zadaniem?
+**Skrypty:** `analysis/pllum_raw_dump.py`, `pllum_patterns.py`, `pllum_vs_bielik.py`,
+`pllum_ceiling.py`
+
+**Werdykt: to nie jest zepsuty szablon — model mówi naszym protokołem i mimo to nie umie
+zadania.** Zero artefaktów szablonu po obu stronach (`<|..|>`, `[INST]`, `<s>`, nagłówki ról).
+83,9 % kroków PLLuM parsuje się poprawnie wobec 89,3 % u Bielika — różnica 5,4 pp, nie przepaść.
+Rozkład tagów jest **odwrócony**: PLLuM 74 wystąpienia tagów treściowych wobec 29 formatowych,
+Bielik 15 wobec 43. Liczba zamykająca: nawet po darowaniu PLLuM **każdej** porażki dotkniętej
+błędem formatu sufit wynosi **32/67 = 0.478**, poniżej faktycznego 0.806 Bielika, a 35 z 54
+porażek nie ma błędu formatu w ogóle.
+
+Wady własne PLLuM, do opisania w paperze osobno od wyniku: spłaszczona koperta (nazwa narzędzia
+w polu `action`), symulowanie wyniku narzędzia we własnym wyjściu (17,2 % kroków), 2,60 kroku
+na trajektorię wobec 4,58 u Bielika. `adv_010` = model porzuca protokół i prowadzi uprzejmą
+rozmowę z samym sobą przez cztery kroki.
+
+#### Anomalia 2 — seed 1 daje 8/67, seedy 2 i 3 dają 49 i 48
+
+**Pytanie:** czy run wystartował poprawnie, czy trajektorie są urwane/puste/merytorycznie złe
+i czy seed w ogóle trafił do konfiguracji?
+**Skrypty:** `analysis/variance_seed_config.py`, `variance_classify.py`, `variance_repetition.py`
+
+**Werdykt: run wystartował poprawnie, seed trafił do konfiguracji, trajektorie nie są ani
+urwane, ani puste — zapaść jest w dyscyplinie koperty, nie w rozumowaniu.** Seed i temperatura
+SĄ w rekordach trajektorii (1/2/3 przy T=0.7), więc przypisanie po nazwie katalogu jest
+potwierdzone niezależnie danymi, mimo `None` w `summary.json`. Seed1 wyprodukował **więcej**
+tekstu (472 692 tokeny wobec 419 324) i pracował **dłużej** (417 s wobec 274 s) niż seed2, który
+punktuje sześć razy lepiej. Różnica siedzi w jednym miejscu: 44,2 % kroków seed1 nie parsuje się
+wobec 13,0 % w seed2. ★ **Po darowaniu kaskad formatu seed1 ląduje na 0.776 (Q8) i 0.881 (Q3)**,
+czyli w tym samym paśmie co faktyczne wyniki seedów 2 i 3.
+
+Fakt o kodzie potwierdzony w źródle (nie hipoteza): `llama_cpp_runner.py:292` — konstruktor
+`Llama(...)` **nie dostaje seeda w ogóle**, a `create_chat_completion(seed=seed)` w linii 311
+dostaje ten sam seed przy **każdym** kroku pętli (wołane z linii 103, ze środka
+`for step_idx in range(task.max_steps)`). Co ten parametr robi wewnątrz llama-cpp — nadal
+nierozstrzygnięte, biblioteki nie ma w tym venvie.
+
+#### Anomalia 3 — drabina, rozbicie na szczeble
+
+**Pytanie:** pass rate osobno dla L0/L1/L2/L3T/L3N na obu Bielikach i każdym kwancie; dla L3N
+podział porażek na SKRÓT i PRAWDZIWY oraz dwie raty, ścisła i tolerancyjna.
+**Skrypty:** `analysis/ladder_rungs.py`, `ladder_breakdown.py`, `ladder_nearmiss.py`,
+`ladder_typing_tolerant.py`, `ladder_controls.py`
+
+**Werdykt: przewidywany SKRÓT nie istnieje, a bliskie porażki L3N to wyłącznie typowanie pola
+`answer`.** Model wykonuje wymagany łańcuch (`get_weather > get_forecast > convert > convert`)
+i podaje golden, po czym odpada, bo `answer` jest floatem (11B) albo dictem (7B) przy schemacie
+wymagającym stringa. Rata tolerancyjna liczona wg **faktycznej** przyczyny: L3N na 11B Q8 idzie
+**0.20 → 0.90**, na 7B Q8 **0.00 → 0.70**.
+
+★ **L0 = 0.00 we wszystkich ośmiu runach, ale z dwóch różnych przyczyn** — to nie jest jedno
+zjawisko: 11B łamie zakaz wywołań narzędzi (`unexpected_tool_call` ×10), a 7B i Q2 są posłuszne,
+tylko psują kopertę albo liczą źle. Kontrola „to nie są darmowe punkty" przeszła:
+L1 i L2 mają identyczne tagi formatu, ale golden jest tam **nieobecny** (model odpowiada 59
+zamiast 46.4, 54.2 zamiast 48.2), więc nie zostały darowane — `ladder_controls.py`.
+
+### Sesja 3 — trzy analizy pogłębiające
+
+#### Analiza 1 — anatomia dipu Q4 na Bielik-11B (main 67, repair off)
+
+**Pytanie:** czy dip Q4 (0.537 wobec 0.746 na Q5) przeżyje darowanie kaskad formatu, czy zniknie;
+i czy zadania padające tylko na Q4 to spójna grupa?
+**Skrypty:** `analysis/q4dip_classify.py`, `q4dip_depth.py`, `q4dip_deep_ceiling.py`,
+`q4dip_group.py`
+
+Uwaga metodologiczna: `results/v3_11b_2026-06-18/` (commit `a023c3b`) **nie ma `run.log`**,
+więc werdykty odtwarzane są kodem repo (`eval.smoke.evaluate`). Legalizuje to fakt, że
+`tasks/adversarial/` i `src/polagentbench/eval/` są bajt w bajt identyczne między `a023c3b`
+a HEAD. Odtworzenie zwalidowane w dwie strony — 48/36/50 zgodne z `summary.json` **i** z
+`analysis/per_task_matrix.csv`, zero rozjazdów.
+
+**Werdykt: dip Q4 przeżywa darowanie kaskad formatu, ale traci ponad połowę wielkości** — z
+−0.209 do −0.090 wobec Q5 na całej suicie i z −0.520 do −0.320 w kubełku, w którym faktycznie
+żyje. To złożenie obu przyczyn, mniej więcej 57:43 na korzyść formatu. Grupa 14 zadań padających
+tylko na Q4 **nie jest losowym rozrzutem**: 79 % ma co najmniej cztery wywołania przy 37 %
+w suicie, 86 % wymaga `convert_temperature`, 6 z 14 ma bajtowo identyczną sygnaturę tagów,
+a w drugą stronę idzie jedno zadanie (`adv_004b`).
+
+★ **Cały dip siedzi na głębokości ≥4 wywołań** (0.32 wobec 0.84 na Q5); przy 2–3 wywołaniach Q4
+jest **wyżej** niż Q5 i Q3. Zdanie do papera: dip Q4 to degradacja dyscypliny koperty, która
+ujawnia się dopiero powyżej trzech wywołań narzędzi i tam zamienia się w niedokończone łańcuchy
+i timeouty (87 udanych `call_tool` wobec 127 na Q5, jedenaście razy więcej spłaszczonych kopert).
+
+#### Analiza 2 — skąd się bierze „59"
+
+**Pytanie:** cztery zadania L1 odpowiadają 59 — kotwica z kontekstu czy atraktor spoza kontekstu?
+**Skrypty:** `analysis/attractor59_cases.py`, `attractor59_count.py`,
+`attractor59_negative_controls.py`, `attractor59_direction.py`
+
+**Werdykt: atraktor spoza kontekstu, nie kotwica z kontekstu.** We wszystkich czterech zadaniach
+model wykonuje poprawny łańcuch i dostaje z narzędzia wartości, których średnia jest **dokładnie
+goldenem** — a odpowiada 59 i powtarza to aż do `max_steps`. Trzy różne goldeny, trzy różne pary
+wartości wejściowych, ta sama odpowiedź. Kontrole negatywne: 59 nie jest goldenem **żadnego**
+zadania w suicie, nie występuje w `environments/weather.py`, a 15 °C w ogóle nie istnieje wśród
+temperatur środowiska (zakres −5.0 … 19.0).
+
+★ **59 °F = 15 °C dokładnie** — kanoniczna para z tablic przeliczeniowych. 59.0 jest najczęstszą
+liczbową odpowiedzią w **całym** zbiorze: 91 par (run, zadanie), 26 zadań, 23 runy, oba modele,
+pięć poziomów kwantyzacji. Kierunek przyczynowy rozstrzygnięty: z 91 przypadków zero ma 59
+w promptcie, jedenaście ma je w wyniku narzędzia — i we **wszystkich jedenastu** dlatego, że
+model sam podał narzędziu `convert_temperature(value=15, …)`. Do papera: **fallback na pamięć
+parametryczną przy poprawnie wykonanym łańcuchu narzędzi** — najbardziej niepokojąca odmiana
+błędu, bo trajektoria wygląda na wzorową aż do ostatniego kroku.
+
+#### Analiza 3 — rozdzielenie zmiennych w envelope collapse
+
+**Pytanie:** czy spłaszczanie koperty jest efektem narzędzia (`convert_temperature`), czy pozycji
+w łańcuchu (trzeci krok) — a jeśli obie zmienne są skonfundowane, zapisać to jako limitation.
+**Skrypty:** `analysis/envelope_positions.py`, `envelope_marginals.py`
+
+**Werdykt: zmienne się rozdzielają, konfundacji nie ma, i dominuje narzędzie.** Oba warunki
+rozstrzygające spełnione z zapasem: 14 wywołań `convert` poza trzecim krokiem, z czego **8 ma
+poprawną kopertę**, oraz 27 trzecich kroków bez `convert`, z czego **26 ma poprawną kopertę**.
+Iloraz ryzyka: **narzędzie 3.95×** (50,0 % wobec 12,7 %), **pozycja 0.60×** — trzeci krok jest
+wręcz *bezpieczniejszy* od średniej.
+
+Kontrast wart osobnego zdania: u Bielika-7B **żadna** z dwóch zmiennych nie tłumaczy niczego
+(0.73× / 1.13× dla narzędzia, 0.81× / 0.74× dla pozycji przy 30–40 % złych kopert w tle) —
+tam rozsypka koperty jest rozproszona po całym runie. Limitation, która zostaje: komórka
+„trzeci krok + convert" ma liczebność 2; wniosek nie opiera się na niej, tylko na rozkładach
+brzegowych 16/158 i 29/145.
+
+### Obalone po drodze
+
+Cztery rzeczy, w które wierzyliśmy przed tym dniem, a które dane obaliły. Zapisane, żeby nie
+wracały:
+
+1. **Hipoteza zaklinowanego samplera — OBALONA.** Wniosek z runu nocnego, że seed podawany co
+   krok „zaklinowuje" model w pętli, nie broni się w danych. Sygnatura zapętlenia (powtórzone
+   wyjścia w obrębie trajektorii) **nie wyróżnia seed1**: najwięcej powtórzeń ma **seed3
+   (13,7 %), który daje 48/67**; seed1 ma 6,3 %, praktycznie tyle co seed2 (6,5 %). Fakt o kodzie
+   (seed podawany przy każdym kroku) zostaje, ale przestaje być wyjaśnieniem zapaści.
+   `analysis/variance_repetition.py`.
+2. **Kategoria SKRÓT — PUSTA.** Plan zakładał, że część porażek L3N to skrót: poprawny golden
+   przy jednej konwersji zamiast dwóch. W danych **0 z 80** zadań L3N. Modele robią albo dwie
+   konwersje (poprawna liczba), albo zero, albo sześć — jednej nie robi nikt. Rata tolerancyjna
+   w tej definicji równa się ścisłej i sama w sobie nic nie wnosi; wartość ma dopiero rata
+   liczona wg typowania. `analysis/ladder_breakdown.py`.
+3. **`attractor59_scan_raw.py` ZAWYŻA.** Pierwszy skan liczył każdy obiekt JSON osobno, a model
+   powtarza tę samą odpowiedź przez wiele kroków — stąd `61` wychodziło 4189 razy przy 32
+   faktycznych parach (run, zadanie). Skrypt zachowany, bo to on wykrył, że czołówka odpowiedzi
+   to dokładne konwersje C→F, ale **oznaczony w docstringu i README jako niebędący źródłem
+   liczb**. Liczby raportowane pochodzą z `attractor59_count.py`, który deduplikuje w obrębie
+   trajektorii.
+4. **Korekta targetowania envelope collapse.** Dokument przekazania mówił, że 18 wystąpień
+   spłaszczonej koperty dotyczy **Bielika-7B Q8 na main** — to było **błędne**. W danych żaden
+   run 7B Q8 na main nie ma 18 wystąpień (mają 31 i 50); jedynym runem `main67` z dokładnie 18
+   jest **PLLuM-8B Q8**. Analiza 3 poszła na PLLuM, oba runy 7B dołożone jako kontrast.
+   Wykryte przez `analysis/inventory.py` — stąd reguła: **puszczać inwentarz przed każdą nową
+   analizą, zanim policzy się cokolwiek na niewłaściwym runie.**
+
+### Decyzje produktowe dnia
+
+- **Mina typowania — rozwiązana opcją 1: obie raty jako sensitivity analysis.** Nie wybieramy
+  między ratą ścisłą a tolerancyjną i nie zmieniamy schematu post hoc. Paper raportuje obie
+  obok siebie, z jawnym opisem, że różnica to wyłącznie typ pola `answer`, oraz z kontrolą
+  `ladder_controls.py` pokazującą, że tolerancja nie rozdaje darmowych punktów (L1/L2 nie są
+  darowane, bo golden jest tam nieobecny).
+- **PLLuM wchodzi do papera jako pełnoprawny trzeci model**, nie jako przypis ani materiał
+  odrzucony. Z jawnym **disclosure o bramce C**: krzywa PLLuM powstała jako BONUS po niezdanej
+  bramce (0.400 / 0.467 przy progu 0.5), a nie jako realizacja FAZY 1 planu nocnego. Uzasadnienie
+  merytoryczne dla włączenia: sufit hojny 0.478 pokazuje, że niski wynik jest pomiarem zdolności,
+  a nie awarią konfiguracji.
+- **Tytuł papera:** „The Q2 Cliff: Agentic Degradation Under GGUF Quantization in Three Polish
+  Open Models".
+
+### Stan po sesji
+
+- Skrypty analityczne w `analysis/` (24 pliki + README z mapą), commit `ccc0d87`, wszystkie
+  wyłącznie do odczytu, wszystkie zielone z katalogu głównego repo.
+- **Dane zabezpieczone poza maszyną**, domknięcie ryzyka z Sesji 1: prywatne repo
+  `JakubPrejzner/polagentbench` oraz release `backup-20260821` z `results_20260821.tar.gz`
+  (327 plików, sha256 `2d58004686…`) i manifestem per-plik. Kopia zweryfikowana round-tripem:
+  pobrana z GitHuba rozpakowuje się do 327/327 plików zgodnych z manifestem sprzed pakowania.
+- `results/` pozostaje gitignorowane i **nie jest** w repo — surowe dane żyją w releasie
+  i w `polagentbench-backup/` na dysku.
