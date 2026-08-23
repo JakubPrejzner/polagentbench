@@ -115,3 +115,36 @@ for model,quant,run in RUNS:
             val=answer_val(trajs[tid])
             if val is not None and not isinstance(val,str) and any(g in str(val) for g in GOLD[tid]): fg+=1
     print(f"{model:<12}{quant:<9}{f'{p}/10 = {p/10:.2f}':>12}{f'{p}/10 = {p/10:.2f}':>22}{f'{p+fg}/10 = {(p+fg)/10:.2f}':>26}")
+
+# --- BLOK DODANY: liczby, ktore cytuje przypis pod tabela sensitivity w paperze ---
+# Nic powyzej nie jest zmieniane; ponizsze wiersze tylko DRUKUJA to, co i tak wynika
+# z tej samej reguly kredytowania, zebrane po wszystkich osmiu runach.
+print()
+print("Pula po osmiu runach (suma kolumny RAZEM powyzej):")
+_P=sum(p for p,f,t in TOT.values()); _F=sum(f for p,f,t in TOT.values()); _T=sum(t for p,f,t in TOT.values())
+print(f"  scisle        {_P}/{_T} = {_P/_T:.3f}")
+print(f"  tolerancyjnie {_P+_F}/{_T} = {(_P+_F)/_T:.3f}")
+print(f"  delta         {_F}/{_T} = {_F/_T:.3f}")
+print()
+print("Spis porazek CZYSTO FORMATOWYCH (tagi niepuste i zawarte w FMT_ONLY) po osmiu runach")
+print("oraz powod, dla ktorego korekta ich NIE kredytuje:")
+_fmt=_cred=_no_val=_is_str=_no_gold=0
+for model,quant,run in RUNS:
+    v=verdicts(run)
+    trajs={t["task_id"]:t for t in (json.loads(l) for l in open(f"{run}/trajectories.jsonl",encoding="utf-8"))}
+    for tid,(st,tg) in v.items():
+        if rung(tid) is None or st=="PASS": continue
+        if not (tg and tg<=FMT_ONLY): continue
+        _fmt+=1
+        val=answer_val(trajs[tid])
+        if val is None: _no_val+=1
+        elif isinstance(val,str): _is_str+=1
+        elif any(g in str(val) for g in GOLD[tid]): _cred+=1
+        else: _no_gold+=1
+print(f"  porazki czysto formatowe                              {_fmt}")
+print(f"    kredytowane przez korekte (kryteria i+ii+iii)       {_cred}")
+print(f"    NIE kredytowane                                     {_fmt-_cred}")
+print(f"      (iii) wartosc odzyskana, nie-str, brak goldena    {_no_gold}")
+print(f"      (ii)  wartosci answer w ogole nie dalo sie odzyskac {_no_val}")
+print(f"      (iii) odzyskana wartosc JEST typu str             {_is_str}")
+print(f"    kontrola sumy: {_cred}+{_no_gold}+{_no_val}+{_is_str} = {_cred+_no_gold+_no_val+_is_str} (musi byc {_fmt})")

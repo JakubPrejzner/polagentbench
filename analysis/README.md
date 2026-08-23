@@ -61,6 +61,7 @@ bywa identyczna z tą, którą seed2 zalicza.
 |---|---|---|
 | `ladder_rungs.py` | Analiza 3, opis szczebli | L0 **zabrania** wywołań narzędzi; L3N wymaga **dwóch** konwersji |
 | `ladder_breakdown.py` | Analiza 3, TABELA 1 i TABELA 2 | **SKRÓT = 0 w 80 zadaniach L3N** → rata tolerancyjna = ścisła |
+| `ladder_pllum_rungs.py` | `paper/tables/ladder.tex`, sześć wierszy PLLuM | całe **2 zaliczenia PLLuM na drabinie**: Q8_0 na L0 (`v3_ext_L0_c`, `v3_ext_L0_f`), pięć niższych kwantów **0/46** |
 | `ladder_nearmiss.py` | Analiza 3, blok „Dlaczego SKRÓT jest pusty" | poprawny łańcuch + poprawny golden, odrzucone na **typie** pola `answer` (float w 11B, dict w 7B) |
 | `ladder_typing_tolerant.py` | Analiza 3, TABELA 3 | L3N na 11B Q8: **0.20 → 0.90**; na 7B Q8: 0.00 → 0.70 |
 | `ladder_controls.py` | Analiza 3, kontrola + przyczyny L0 | L1/L2 **nie** darowane, bo golden nieobecny (59 zamiast 46.4); L0 = 0.00 ma dwie różne przyczyny |
@@ -102,6 +103,26 @@ poprawnie wykonanym łańcuchu narzędzi.
 
 **Finding:** spłaszczanie koperty u PLLuM jest efektem specyficznym dla `convert_temperature`,
 nie efektem głębokości łańcucha. U Bielika-7B żadna z dwóch zmiennych nie tłumaczy niczego.
+
+### Podłoga szumu: bootstrap CI
+
+| skrypt | produkuje | kluczowa liczba |
+|---|---|---|
+| `bootstrap_ci.py` | tabela CI 95% dla 18 komórek `main67` (repair=off) + druga tabela dla repair=ON + blok porównań (a) Q8/Q6/Q5 i (b) Q3→Q2 | przedziały Q8, Q6 i Q5 **nachodzą na siebie u wszystkich trzech modeli** (część wspólna całej trójki: 11B `[0.746, 0.851]`, 7B `[0.403, 0.567]`, PLLuM `[0.104, 0.179]`), a spadek Q3→Q2 przekracza szerszy z dwóch CI o **44,8 pp** (11B), **7,5 pp** (7B) i **1,5 pp** (PLLuM) |
+
+Bootstrap percentylowy, przedział 95%, **resampling po zadaniach** (wektor 0/1 długości 67,
+losowanie ze zwracaniem), 10 000 prób. Ziarno na sztywno `SEED = 20260823`, wektor uporządkowany
+rosnąco po `task_id`, `random.Random(SEED)` tworzony osobno dla każdej komórki — wynik jest
+odtwarzalny co do cyfry (sprawdzone trzema przebiegami, identyczne bajt w bajt). Werdykty
+wyłącznie z oracle'a: `run.log` tam, gdzie istnieje (7B Q5/Q6 i wszystkie komórki PLLuM),
+odtworzenie przez `eval.smoke.evaluate` tam, gdzie go nie ma (11B Q2–Q8, 7B Q2/Q3/Q4/Q8).
+Każda komórka przechodzi walidację `len(wektor) == 67` **i** `sum(wektor) == summary.num_passed`;
+przy uruchomieniu z 2026-08-23 **0 rozjazdów na 36 komórek** (18 repair=off + 18 repair=ON).
+
+**Finding:** różnice między Q8, Q6 i Q5 mieszczą się w szumie próby — na tej suicie nie da się
+ich rozstrzygnąć. Q3→Q2 jest jedynym spadkiem, który wychodzi poza szerokość CI u wszystkich
+trzech modeli, ale margines jest ostry tylko na 11B (3,00× szerokości CI); na PLLuM wynosi
+1,08× szerokości CI, czyli ledwie.
 
 ## Dwie rzeczy, o których trzeba wiedzieć czytając wyniki
 
