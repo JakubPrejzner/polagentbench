@@ -1,0 +1,26 @@
+{
+  "model_id": "llama-pllum-8b",
+  "quant": "Q4_K_M",
+  "repair": false,
+  "num_tasks": 67,
+  "num_trajectories": 67,
+  "num_passed": 15,
+  "num_inconclusive": 0,
+  "num_total": 67,
+  "success_rate": 0.2239,
+  "repair_applied_steps": 0,
+  "failure_tag_counts": {
+    "expected_tool_not_called": 8,
+    "unknown_action": 19,
+    "final_answer_missing": 10,
+    "invalid_json": 2,
+    "wrong_final_answer": 24,
+    "unauthorized_side_effect": 1,
+    "no_json_found": 19,
+    "unexpected_tool_call": 3,
+    "wrong_tool_order": 37,
+    "timeout": 9
+  },
+  "commit_hash": "e584b38ec7045f37bfe3c42c402ca25995c8b2e7",
+  "git_ref": "e584b38"
+}

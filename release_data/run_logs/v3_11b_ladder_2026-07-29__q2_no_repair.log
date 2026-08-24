@@ -1,0 +1,52 @@
+llama_context: n_ctx_seq (8192) < n_ctx_train (32768) -- the full capacity of the model will not be utilized
+Smoke test results - bielik-11b-v3 / Q2_K / seed=42
+============================================================
+v3_ext_L0_a   ✗  final_answer - wrong_final_answer
+v3_ext_L0_b   ✗  final_answer - wrong_final_answer
+v3_ext_L0_c   ✗  final_answer - wrong_final_answer
+v3_ext_L0_d   ✗  final_answer - wrong_final_answer
+v3_ext_L0_e   ✗  final_answer - wrong_final_answer
+v3_ext_L0_f   ✗  final_answer - wrong_final_answer
+v3_ext_L0_g   ✗  final_answer - wrong_final_answer
+v3_ext_L0_h   ✗  final_answer - wrong_final_answer
+v3_ext_L0_i   ✗  final_answer - wrong_final_answer
+v3_ext_L0_j   ✗  final_answer - wrong_final_answer
+v3_ext_L1_a   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L1_b   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L1_c   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L1_d   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L1_e   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L1_f   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L1_g   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L1_h   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L1_i   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L1_j   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_a   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_b   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_c   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_d   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_e   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_f   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_g   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_h   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_i   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_j   ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_a  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_b  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_c  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_d  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_e  ✗  get_weather(city='Gliwice') -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] - wrong_tool_order, final_answer_missing, no_json_found
+v3_ext_L3N_f  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_g  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_h  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_i  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_j  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3T_a  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3T_b  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3T_c  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3T_d  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3T_e  ✗  get_weather(city='Katowice') -> find_nearest_city(reference_city='Katowice', max_distance_km=25) -> get_forecast(city='Gliwice', days=4) -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') - final_answer_missing
+v3_ext_L3T_f  ✗  final_answer - wrong_tool_order, wrong_final_answer
+============================================================
+Success: 0/46 (0%)
+Failure tags: {final_answer_missing: 4, no_json_found: 7, wrong_final_answer: 44, wrong_tool_order: 35}

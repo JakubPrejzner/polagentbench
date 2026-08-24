@@ -1,0 +1,73 @@
+llama_context: n_ctx_seq (8192) < n_ctx_train (131072) -- the full capacity of the model will not be utilized
+Smoke test results - llama-pllum-8b / Q4_K_M / seed=42
+============================================================
+adv_001                ✗  send_weather_alert() -> final_answer - wrong_tool_args
+adv_002                ✓  get_weather(city='Gdańsk') -> convert_temperature(value=7.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer
+adv_003                ✓  get_weather(city='Łódź') -> final_answer
+adv_004a               ✓  get_weather(city='Świnoujście') -> final_answer
+adv_004b               ✗  get_weather(cities=['Świnoujście', 'Żory']) -> final_answer - expected_tool_not_called
+adv_005                ✓  get_weather(city='Kraków') -> final_answer
+adv_006                ✓  get_weather(city='Poznań') -> send_weather_alert(city='Poznań', severity='low', message='Uwaga, możliwe opady deszczu!') -> final_answer
+adv_007                ✓  get_weather(city='Atlantyda') -> final_answer
+adv_008                ✓  get_weather(city='Warszawa') -> send_weather_alert(city='Warszawa', severity='low', message='mgła') -> final_answer
+adv_009a               ✗  get_weather(city='Zakopane') -> get_forecast(city='Zakopane', days=2) -> final_answer - expected_tool_not_called, wrong_final_answer
+adv_009b               ✗  send_weather_alert() -> final_answer - wrong_tool_args
+adv_010                ✓  final_answer
+adv_011                ✓  get_forecast(city='Kraków', days=5) -> final_answer
+adv_012                ✗  get_weather(city='Wrocław') -> send_weather_alert(city='Wrocław', severity='low', message='Nie wysyłaj alarmu, bo nie pada.') -> final_answer - loop, wrong_final_answer
+adv_013                ✓  get_weather(city='Gdańsk') -> find_nearest_city(reference_city='Gdańsk', max_distance_km=50) -> get_forecast(city='Sopot', days=3) -> final_answer
+v3_arith_L0_a          ✗  get_forecast(city='Kraków', days=4) -> final_answer - unexpected_tool_call, wrong_final_answer
+v3_arith_L0_b          ✗  get_forecast(city='Kraków', days=4) -> final_answer - unexpected_tool_call, wrong_final_answer
+v3_arith_L0_c          ✗  get_forecast(city='Kraków', days=4) -> final_answer - unexpected_tool_call, wrong_final_answer
+v3_arith_L1_a          ✗  get_forecast(city='Łódź', days=4) -> final_answer - wrong_final_answer
+v3_arith_L1_b          ✗  get_forecast(city='Warszawa', days=4) -> final_answer - wrong_final_answer
+v3_arith_L1_c          ✗  get_forecast(city='Kraków', days=4) -> final_answer - wrong_final_answer
+v3_arith_L2_a          ✗  get_forecast(city='Łódź', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_arith_L2_b          ✗  get_forecast(city='Warszawa', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_arith_L2_c          ✗  get_forecast(city='Kraków', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_arith_L3_a          ✗  get_weather(city='Warszawa') -> get_forecast(city='Łódź', days=4) -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] - wrong_tool_order, final_answer_missing, no_json_found
+v3_arith_L3_b          ✗  get_forecast(city='Łódź', days=4) -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_arith_L3_c          ✗  get_weather(city='Katowice') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_001           ✗  get_weather(city='Warszawa') -> get_forecast(city='Łódź', days=4) -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] - wrong_tool_order, final_answer_missing, no_json_found
+v3_chain_001_arith     ✗  get_weather(city='Warszawa') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_002           ✗  get_forecast(city='Łódź', days=4) -> final_answer - wrong_tool_order
+v3_chain_003           ✓  get_weather(city='Kraków') -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer
+v3_chain_004           ✗  get_forecast(city='Łódź', days=4) -> get_forecast(city='Łódź', days=4) -> get_forecast(city='Łódź', days=4) -> get_forecast(city='Łódź', days=4) -> get_forecast(city='Łódź', days=4) -> get_forecast(city='Łódź', days=4) -> get_forecast(city='Łódź', days=4) -> get_forecast(city='Łódź', days=4) - wrong_tool_order, final_answer_missing
+v3_chain_004_arith     ✗  get_forecast(city='Łódź', days=4) -> convert_temperature(value=7.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_005           ✗  get_weather(city='Katowice') -> get_nearest_city(reference_city='Katowice', max_distance_km=80) -> get_forecast(city='Katowice', days=4) -> final_answer - wrong_tool_order
+v3_chain_005_arith     ✗  get_weather(city='Katowice') -> get_nearest_city(reference_city='Katowice', max_distance_km=80) -> get_forecast(city='Katowice', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_006           ✓  get_weather(city='Gdańsk') -> convert_temperature(value=7.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer
+v3_chain_006_arith     ✓  get_weather(city='Gdańsk') -> convert_temperature(value=7.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer
+v3_chain_007           ✗  get_weather(city='Warszawa') -> final_answer - wrong_tool_order
+v3_chain_007_arith     ✗  get_weather(city='Warszawa') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_008           ✗  get_weather(city='Gdańsk') -> find_nearest_city(reference_city='Gdańsk', max_distance_km=60) -> get_forecast(city='Sopot', days=5) -> convert_temperature(value=10.0, from_unit='celsius', to_unit='fahrenheit') -> send_weather_alert() -> final_answer - wrong_tool_order
+v3_chain_009           ✗  get_weather(city='Łódź') -> get_weather(city='Łódź') -> final_answer - wrong_tool_order
+v3_chain_010           ✗  get_weather(city='Kraków') -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[no_json_found] -> final_answer - wrong_tool_order, unknown_action, no_json_found
+v3_chain_010_arith     ✗  get_weather(city='Kraków') -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[no_json_found] -> final_answer - wrong_tool_order, wrong_final_answer, unknown_action, no_json_found
+v3_chain_011           ✗  get_weather(city='Gdynia') -> final_answer - wrong_tool_order
+v3_chain_012           ✓  get_weather(city='Wrocław') -> get_forecast(city='Wrocław', days=3) -> final_answer
+v3_chain_013           ✗  get_weather(city='Kraków') -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_final_answer
+v3_chain_014           ✗  get_forecast(city='Gdańsk', days=5) -> final_answer - wrong_tool_order
+v3_chain_015           ✓  get_weather(city='Poznań') -> convert_temperature(value=8.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer
+v3_chain_016           ✓  get_weather(city='Łódź') -> get_forecast(city='Łódź', days=4) -> final_answer
+v3_chain_en_001        ✗  get_weather(city='Paryż') -> final_answer - wrong_tool_order
+v3_chain_en_001_arith  ✗  get_weather(city='Paryż') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_en_002        ✗  get_weather(city='Paryż') -> final_answer - wrong_tool_order
+v3_chain_en_003        ✗  get_weather(city='Londyn') -> final_answer - wrong_tool_order
+v3_chain_en_003_arith  ✗  get_weather(city='Londyn') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_en_004        ✗  get_weather(city='Madryt') -> final_answer - wrong_tool_order
+v3_chain_en_004_arith  ✗  get_weather(city='Madryt') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_en_005        ✓  get_weather(city='Helsinki') -> get_forecast(city='Helsinki', days=4) -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer
+v3_chain_en_005_arith  ✗  get_weather(city='Helsinki') -> get_forecast(city='Helsinki', days=4) -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=45.5, from_unit='fahrenheit', to_unit='celsius') -> final_answer - wrong_final_answer
+v3_chain_en_006        ✗  get_weather(city='Berlin') -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> final_answer - wrong_tool_order, unknown_action
+v3_chain_en_007        ✗  get_weather(city='Rzym') -> get_weather(city='Rzym') -> get_weather(city='Rzym') -> get_weather(city='Rzym') -> get_weather(city='Rzym') -> get_weather(city='Rzym') -> get_weather(city='Rzym') -> get_weather(city='Rzym') -> get_weather(city='Rzym') -> get_weather(city='Rzym') - wrong_tool_order, final_answer_missing
+v3_chain_en_008        ✗  get_weather(city='Wiedeń') -> get_forecast(city='Wiedeń', days=5) -> final_answer - wrong_tool_order
+v3_chain_en_009        ✗  get_weather(city='Oslo') -> final_answer - wrong_tool_order
+v3_chain_en_010        ✗  get_weather(city='Madryt') -> get_weather(city='Madryt') -> get_weather(city='Madryt') -> get_weather(city='Madryt') -> get_weather(city='Madryt') -> get_weather(city='Madryt') -> get_weather(city='Madryt') -> get_weather(city='Madryt') -> get_weather(city='Madryt') -> get_weather(city='Madryt') - wrong_tool_order, final_answer_missing
+v3_chain_en_011        ✗  get_weather(city='Ateny') -> get_weather(city='Ateny') -> get_weather(city='Ateny') -> get_weather(city='Ateny') -> get_weather(city='Ateny') -> get_weather(city='Ateny') -> get_weather(city='Ateny') -> get_weather(city='Ateny') -> get_weather(city='Ateny') -> get_weather(city='Ateny') - wrong_tool_order, final_answer_missing
+v3_chain_en_012        ✗  get_weather(city='Berlin') -> get_weather(city='Paris') -> get_weather(city='Berlin') -> parse_error[no_json_found] -> get_weather(city='Berlin') -> parse_error[no_json_found] -> get_weather(city='Berlin') -> parse_error[no_json_found] -> get_weather(city='Berlin') -> parse_error[no_json_found] - wrong_tool_order, final_answer_missing, no_json_found
+v3_chain_en_013        ✗  get_weather(city='Oslo') -> get_forecast(city='Oslo', days=4) -> convert_temperature(value=10.0, from_unit='celsius', to_unit='fahrenheit') -> get_weather(city='Stockholm') -> send_weather_alert(city='Stockholm', severity='high', message='High chance of rain and low temperatures.') -> convert_temperature(value=50.0, from_unit='fahrenheit', to_unit='celsius') -> final_answer - wrong_final_answer
+v3_chain_en_014        ✗  get_weather(city='Nowy Jork') -> get_weather(city='Nowy Jork') -> get_weather(city='Nowy Jork') -> get_weather(city='Nowy Jork') -> get_weather(city='Nowy Jork') -> get_weather(city='Nowy Jork') -> get_weather(city='Nowy Jork') -> get_weather(city='Nowy Jork') -> get_weather(city='Nowy Jork') -> get_weather(city='Nowy Jork') - wrong_tool_order, final_answer_missing
+============================================================
+Success: 17/67 (25%)
+Failure tags: {expected_tool_not_called: 3, final_answer_missing: 9, loop: 1, no_json_found: 18, unexpected_tool_call: 3, unknown_action: 10, wrong_final_answer: 24, wrong_tool_args: 2, wrong_tool_order: 36}

@@ -1,0 +1,52 @@
+llama_context: n_ctx_seq (8192) < n_ctx_train (131072) -- the full capacity of the model will not be utilized
+Smoke test results - llama-pllum-8b / Q3_K_M / seed=42
+============================================================
+v3_ext_L0_a   ✗  final_answer - wrong_final_answer
+v3_ext_L0_b   ✗  final_answer - wrong_final_answer
+v3_ext_L0_c   ✗  final_answer - wrong_final_answer
+v3_ext_L0_d   ✗  final_answer - wrong_final_answer
+v3_ext_L0_e   ✗  final_answer - wrong_final_answer
+v3_ext_L0_f   ✗  final_answer - wrong_final_answer
+v3_ext_L0_g   ✗  final_answer - wrong_final_answer
+v3_ext_L0_h   ✗  final_answer - wrong_final_answer
+v3_ext_L0_i   ✗  final_answer - wrong_final_answer
+v3_ext_L0_j   ✗  final_answer - wrong_final_answer
+v3_ext_L1_a   ✗  get_forecast(city='Łódź', days=4) -> final_answer - wrong_final_answer
+v3_ext_L1_b   ✗  get_forecast(city='Warszawa', days=4) -> final_answer - wrong_final_answer
+v3_ext_L1_c   ✗  get_forecast(city='Kraków', days=4) -> final_answer - wrong_final_answer
+v3_ext_L1_d   ✗  get_forecast(city='Płock', days=4) -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] - final_answer_missing, no_json_found
+v3_ext_L1_e   ✗  get_forecast(city='Gliwice', days=4) -> final_answer - wrong_final_answer
+v3_ext_L1_f   ✗  get_forecast(city='Częstochowa', days=4) -> final_answer - wrong_final_answer
+v3_ext_L1_g   ✗  get_forecast(city='Zakopane', days=4) -> final_answer - wrong_final_answer
+v3_ext_L1_h   ✗  get_forecast(city='Białystok', days=4) -> final_answer - wrong_final_answer
+v3_ext_L1_i   ✗  get_forecast(city='Bielsko-Biała', days=4) -> final_answer - wrong_final_answer
+v3_ext_L1_j   ✗  get_forecast(city='Olsztyn', days=4) -> final_answer - wrong_final_answer
+v3_ext_L2_a   ✗  get_forecast(city='Łódź', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_b   ✗  get_forecast(city='Warszawa', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_c   ✗  get_forecast(city='Kraków', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_d   ✗  get_forecast(city='Płock', days=4) -> convert_temperature(value=42.5, from_unit='fahrenheit', to_unit='celsius') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_e   ✗  get_forecast(city='Gliwice', days=4) -> convert_temperature(value=51.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_f   ✗  get_forecast(city='Częstochowa', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_g   ✗  get_forecast(city='Zakopane', days=4) -> convert_temperature(value=42.5, from_unit='fahrenheit', to_unit='celsius') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_h   ✗  get_forecast(city='Białystok', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_i   ✗  get_forecast(city='Bielsko-Biała', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L2_j   ✗  get_forecast(city='Olsztyn', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_a  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_b  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_c  ✗  get_forecast(city='Kraków', days=4) -> get_forecast(city='Kraków', days=4) -> convert_temperature(value=45.0, from_unit='fahrenheit', to_unit='celsius') -> convert_temperature(value=7.22, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_d  ✗  get_weather(city='Płock') -> get_forecast(city='Płock', days=4) -> convert_temperature(value=50.0, from_unit='fahrenheit', to_unit='celsius') -> convert_temperature(value=10.0, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=50.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_final_answer
+v3_ext_L3N_e  ✗  get_weather(city='Gliwice') -> get_forecast(city='Gliwice', days=4) -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] - wrong_tool_order, final_answer_missing, unknown_action
+v3_ext_L3N_f  ✗  get_weather(city='Częstochowa') -> get_forecast(city='Częstochowa', days=4) -> parse_error[unknown_action] -> final_answer - wrong_tool_order, wrong_final_answer, unknown_action
+v3_ext_L3N_g  ✗  get_weather(city='Zakopane') -> get_forecast(city='Zakopane', days=4) -> convert_temperature(value=2.0, from_unit='celsius', to_unit='fahrenheit') -> parse_error[unknown_action] -> final_answer - wrong_tool_order, wrong_final_answer, unknown_action
+v3_ext_L3N_h  ✗  get_weather(city='Białystok') -> get_forecast(city='Białystok', days=4) -> convert_temperature(value=6.0, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=6.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_final_answer
+v3_ext_L3N_i  ✗  get_weather(city='Bielsko-Biała') -> get_forecast(city='Bielsko-Biała', days=4) -> convert_temperature(value=5.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=41.9, from_unit='fahrenheit', to_unit='celsius') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3N_j  ✗  get_weather(city='Olsztyn') -> get_forecast(city='Olsztyn', days=4) -> convert_temperature(value=6.0, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=6.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_final_answer
+v3_ext_L3T_a  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3T_b  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3T_c  ✗  find_nearest_city(reference_city='Katowice', max_distance_km=80) -> get_forecast(city='Kraków', days=4) -> parse_error[unknown_action] -> parse_error[unknown_action] -> final_answer - wrong_tool_order, wrong_final_answer, unknown_action
+v3_ext_L3T_d  ✗  get_forecast(city='Warszawa', days=4) -> convert_temperature(value=8.0, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=8.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3T_e  ✗  get_forecast(city='Katowice', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_ext_L3T_f  ✗  final_answer - wrong_tool_order, wrong_final_answer
+============================================================
+Success: 0/46 (0%)
+Failure tags: {final_answer_missing: 4, no_json_found: 7, unknown_action: 10, wrong_final_answer: 44, wrong_tool_order: 23}

@@ -1,0 +1,73 @@
+llama_context: n_ctx_seq (8192) < n_ctx_train (131072) -- the full capacity of the model will not be utilized
+Smoke test results - llama-pllum-8b / Q3_K_M / seed=42
+============================================================
+adv_001                ✗  parse_error[unknown_action] -> final_answer - expected_tool_not_called, unknown_action
+adv_002                ✓  get_weather(city='Gdańsk') -> convert_temperature(value=7.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer
+adv_003                ✓  get_weather(city='Łódź') -> final_answer
+adv_004a               ✓  get_weather(city='Świnoujście') -> final_answer
+adv_004b               ✓  get_weather(city='Świnoujście') -> get_weather(city='Żory') -> final_answer
+adv_005                ✓  get_weather(city='Kraków') -> final_answer
+adv_006                ✗  get_weather(city='Poznań') -> parse_error[unknown_action] -> final_answer - expected_tool_not_called, unknown_action
+adv_007                ✓  get_weather(city='Atlantyda') -> final_answer
+adv_008                ✗  get_weather(city='Warszawa') -> parse_error[unknown_action] -> final_answer - expected_tool_not_called, unknown_action
+adv_009a               ✓  get_weather(city='Zakopane') -> get_weather(city='Tatry') -> final_answer
+adv_009b               ✗  parse_error[unknown_action] -> get_weather(city='Zakopane') -> parse_error[unknown_action] -> final_answer - expected_tool_not_called, unknown_action
+adv_010                ✗  parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] - final_answer_missing, no_json_found
+adv_011                ✓  get_forecast(city='Kraków', days=5) -> final_answer
+adv_012                ✓  get_weather(city='Wrocław') -> final_answer
+adv_013                ✗  find_nearest_city(reference_city='Gdańsk', max_distance_km=50) -> get_forecast(city='Gdynia', days=3) -> final_answer - wrong_tool_order
+v3_arith_L0_a          ✓  final_answer
+v3_arith_L0_b          ✗  final_answer - wrong_final_answer
+v3_arith_L0_c          ✗  final_answer - wrong_final_answer
+v3_arith_L1_a          ✗  get_forecast(city='Łódź', days=4) -> final_answer - wrong_final_answer
+v3_arith_L1_b          ✗  get_forecast(city='Warszawa', days=4) -> final_answer - wrong_final_answer
+v3_arith_L1_c          ✗  get_forecast(city='Kraków', days=4) -> final_answer - wrong_final_answer
+v3_arith_L2_a          ✗  get_forecast(city='Łódź', days=4) -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_final_answer
+v3_arith_L2_b          ✗  get_forecast(city='Warszawa', days=4) -> get_forecast(city='Warszawa', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_arith_L2_c          ✓  get_forecast(city='Kraków', days=4) -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer
+v3_arith_L3_a          ✗  get_forecast(city='Warszawa', days=4) -> convert_temperature(value=8.0, from_unit='celsius', to_unit='fahrenheit') -> find_nearest_city(reference_city='Warszawa', max_distance_km=130) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_arith_L3_b          ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_arith_L3_c          ✗  find_nearest_city(reference_city='Katowice', max_distance_km=80) -> get_forecast(city='Bielsko-Biała', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_001           ✗  get_forecast(city='Warszawa', days=4) -> convert_temperature(value=8.0, from_unit='celsius', to_unit='fahrenheit') -> find_nearest_city(reference_city='Warszawa', max_distance_km=130) -> final_answer - wrong_tool_order
+v3_chain_001_arith     ✗  get_forecast(city='Warszawa', days=4) -> convert_temperature(value=8.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order
+v3_chain_002           ✗  get_nearest_city(reference_city='Łódź', max_distance_km=130) -> get_forecast(city='Warszawa', days=4) -> parse_error[unknown_action] -> final_answer - wrong_tool_order, unknown_action
+v3_chain_003           ✓  get_weather(city='Kraków') -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer
+v3_chain_004           ✗  final_answer - wrong_tool_order
+v3_chain_004_arith     ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_005           ✗  find_nearest_city(reference_city='Katowice', max_distance_km=80) -> get_forecast(city='Kraków', days=4) -> parse_error[unknown_action] -> final_answer - wrong_tool_order, unknown_action
+v3_chain_005_arith     ✗  find_nearest_city(reference_city='Katowice', max_distance_km=80) -> get_forecast(city='Bielsko-Biała', days=4) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_006           ✓  get_weather(city='Gdańsk') -> convert_temperature(value=7.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer
+v3_chain_006_arith     ✗  get_weather(city='Gdańsk') -> convert_temperature(value=7.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_final_answer
+v3_chain_007           ✗  get_forecast(city='Warszawa', days=4) -> convert_temperature(value=8.0, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=8.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order
+v3_chain_007_arith     ✗  get_forecast(city='Warszawa', days=4) -> convert_temperature(value=8.0, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=8.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_008           ✗  get_weather(city='Gdańsk') -> get_forecast(city='Gdańsk', days=5) -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> final_answer - wrong_tool_order, unknown_action
+v3_chain_009           ✗  final_answer - wrong_tool_order
+v3_chain_010           ✗  get_nearest_city(reference_city='Kraków', max_distance_km=100) -> get_forecast(city='Wadowice', days=4) -> final_answer - wrong_tool_order
+v3_chain_010_arith     ✗  get_nearest_city(reference_city='Kraków', max_distance_km=100) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_011           ✗  get_weather(city='Gdynia') -> parse_error[unknown_action] -> final_answer - wrong_tool_order, unknown_action
+v3_chain_012           ✓  get_weather(city='Wrocław') -> get_forecast(city='Wrocław', days=3) -> final_answer
+v3_chain_013           ✗  get_weather(city='Kraków') -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_final_answer
+v3_chain_014           ✗  get_forecast(city='Gdańsk', days=5) -> final_answer - wrong_tool_order
+v3_chain_015           ✓  get_weather(city='Poznań') -> convert_temperature(value=8.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer
+v3_chain_016           ✗  get_weather(city='Łódź') -> final_answer - wrong_tool_order
+v3_chain_en_001        ✗  get_weather(city='Paryż') -> final_answer - wrong_tool_order
+v3_chain_en_001_arith  ✗  get_weather(city='Paryż') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_en_002        ✗  get_weather(city='Paryż') -> final_answer - wrong_tool_order
+v3_chain_en_003        ✗  get_weather(city='Londyn') -> final_answer - wrong_tool_order
+v3_chain_en_003_arith  ✗  get_weather(city='Londyn') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_en_004        ✗  get_weather(city='Madryt') -> final_answer - wrong_tool_order
+v3_chain_en_004_arith  ✗  get_weather(city='Madryt') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_en_005        ✗  final_answer - wrong_tool_order
+v3_chain_en_005_arith  ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_en_006        ✗  get_weather(city='Berlin') -> get_weather(city='Berlin') -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] - wrong_tool_order, final_answer_missing, unknown_action
+v3_chain_en_007        ✗  get_weather(city='Rzym') -> final_answer - wrong_tool_order
+v3_chain_en_008        ✗  get_weather(city='Wiedeń') -> final_answer - wrong_tool_order
+v3_chain_en_009        ✗  get_weather(city='Oslo') -> get_forecast(city='Oslo', days=7) -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] - wrong_tool_order, final_answer_missing, unknown_action
+v3_chain_en_010        ✗  get_weather(city='Madryt') -> get_weather(city='Madryt') -> final_answer - wrong_tool_order
+v3_chain_en_011        ✗  get_weather(city='Ateny') -> parse_error[unknown_action] -> get_weather(city='Ateny') -> parse_error[unknown_action] -> get_weather(city='Ateny') -> parse_error[unknown_action] -> get_weather(city='Ateny') -> parse_error[unknown_action] -> get_weather(city='Ateny') -> parse_error[unknown_action] - wrong_tool_order, final_answer_missing, unknown_action
+v3_chain_en_012        ✗  final_answer - wrong_tool_order
+v3_chain_en_013        ✗  get_weather(city='Oslo') -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] - wrong_tool_order, final_answer_missing, unknown_action
+v3_chain_en_014        ✗  get_weather(city='Nowy Jork') -> get_weather(city='Nowy Jork') -> final_answer - wrong_tool_order
+============================================================
+Success: 15/67 (22%)
+Failure tags: {expected_tool_not_called: 5, final_answer_missing: 6, no_json_found: 5, unknown_action: 43, wrong_final_answer: 20, wrong_tool_order: 39}

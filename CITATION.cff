@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: "If you use PolAgentBench or its published data, please cite the paper below."
+title: "PolAgentBench: a Polish-first benchmark for agentic tool use under GGUF quantization"
+abstract: >-
+  A deterministic benchmark measuring what post-training GGUF quantization does to agentic
+  tool use in a non-English setting: Polish prompts against English tool schemas. Three
+  models (Bielik-11B-v3.0-Instruct, Bielik-Minitron-7B-v3.0-Instruct, Llama-PLLuM-8B-instruct)
+  at six precisions each, over a 67-task main suite and a 46-task arithmetic isolation ladder.
+type: software
+authors:
+  - family-names: Prejzner
+    given-names: Jakub
+    email: rd4drop@gmail.com
+repository-code: "https://github.com/JakubPrejzner/polagentbench2026"
+url: "https://github.com/JakubPrejzner/polagentbench2026"
+license: MIT
+keywords:
+  - quantization
+  - agentic evaluation
+  - tool use
+  - large language models
+  - Polish NLP
+  - GGUF
+
+preferred-citation:
+  type: article
+  title: >-
+    Quantization Thresholds Replicate, Failure Modes Do Not: A Three-Model Study of
+    Agentic Tool Use in Polish from 8-bit to 2-bit
+  authors:
+    - family-names: Prejzner
+      given-names: Jakub
+  year: 2026
+  # TODO: uzupelnic po zlozeniu preprintu na arXiv.
+  # Wtedy odkomentowac ponizsze dwie linie i wpisac przyznany identyfikator.
+  # journal: "arXiv preprint arXiv:XXXX.XXXXX"
+  # url: "https://arxiv.org/abs/XXXX.XXXXX"
+  notes: "arXiv identifier pending; fill in once the preprint is posted."

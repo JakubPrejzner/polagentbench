@@ -1,172 +1,187 @@
 # PolAgentBench
 
-> **Status:** WIP — research code, not production. APIs and task definitions will change.
+A Polish-first benchmark for measuring what GGUF quantization does to **agentic tool use** —
+calling the right tools in the right order and computing correct answers from their outputs —
+in a realistic non-English setting: Polish prompts against English tool schemas.
 
-PolAgentBench is a Polish-first agent evaluation benchmark for studying how
-quantization interacts with **language-interface mismatch** in tool-using LLMs:
-specifically, what happens when a model is asked Polish-language questions while
-its tools are described with English schemas (the typical real-world setup).
+Three models, six precisions each (Q8_0 down to Q2_K), 113 deterministic tasks.
+This repository holds the benchmark, every trajectory we collected, the per-task outcome
+matrices, the failure classifier, and the analysis scripts behind the paper.
 
-The benchmark is designed to expose failure modes that are invisible to
-English-only evaluations — schema fracture, language leakage in tool arguments,
-inflection / diacritic corruption of identifiers, and recovery collapse — and to
-measure how aggressively these emerge as quantization is pushed from BF16 down
-to Q4_K_M and Q2_K.
+Companion paper: `paper/polagentbench_paper.tex` —
+*Quantization Thresholds Replicate, Failure Modes Do Not: A Three-Model Study of Agentic
+Tool Use in Polish from 8-bit to 2-bit*.
 
-## Project goals (full picture, not all implemented yet)
+## Models under test
 
-- **Models under test:** Bielik-Minitron-7B-v3.0-Instruct, Bielik-11B-v3.0-Instruct,
-  Qwen2.5-7B-Instruct.
-- **Quantization levels:** BF16 / Q8 reference, Q4_K_M, Q2_K (failure boundary).
-- **Inference stack:** [llama.cpp](https://github.com/ggerganov/llama.cpp) via
-  `llama-cpp-python`, GGUF format only.
-- **Task categories (4):** tool selection, stateful multi-step, constraint
-  following, error recovery.
-- **Interface variants (3):** EN+EN schema, PL+EN schema, PL+EN with PL
-  descriptions.
-- **Universal action protocol** — all models output the same JSON action shape;
-  we deliberately do *not* use any vendor's native tool-calling so that the
-  comparison is apples-to-apples across model families.
+| label | model | role |
+|---|---|---|
+| `bielik-11b-v3` | Bielik-11B-v3.0-Instruct | parent |
+| `bielik-minitron-7b-v3` | Bielik-Minitron-7B-v3.0-Instruct | pruned + distilled child of the above |
+| `llama-pllum-8b` | Llama-PLLuM-8B-instruct | separate pretraining family, comparable scale |
+
+The Bielik pair isolates **model compression** with architecture, corpus, and tokenizer held
+fixed. PLLuM adds the **pretraining-family** axis at comparable scale while staying a
+Polish-focused model, so the family axis is not confounded with the interface language.
+
+## Five results
+
+1. **The collapse threshold replicates across all three models.** Every model falls off a
+   cliff between 3-bit and 2-bit: 11B `0.716 → 0.045`, 7B `0.463 → 0.149`, PLLuM
+   `0.224 → 0.015`. Paired exact McNemar gives `p < 0.0001` for both Bieliks and
+   `p = 0.0001` for PLLuM — across a fourfold spread in absolute capability, across
+   compression by pruning plus distillation, and across a change of pretraining family.
+
+2. **Failure modes do not replicate. Three models, three signatures.** The 7B hangs
+   (median failing trajectory 26,833 tokens), the 11B disintegrates (1,506 tokens, often a
+   single step), and PLLuM fails on *content* while speaking the protocol fluently —
+   83.9% of its steps parse, against 89.3% for the 11B, yet its content-to-format failure
+   ratio is inverted relative to Bielik.
+
+3. **Scaffolding helps rather than hurts, once an answer-typing artifact is corrected.**
+   Bare arithmetic (rung L0, no tool calls permitted) is `0/10` in all eight Bielik ladder
+   runs. Routing the identical computation through four explicit calls lifts the 11B to
+   `9/10` (`p = 0.004`) and the 7B to `7/10` (`p = 0.016`) at 8-bit. The order-trap arm
+   separates the models cleanly: 11B `6/6`, 7B `0/6`.
+
+4. **The Polish-versus-English gap is a signature of degradation, not a property of the
+   interface** — it widens as precision drops rather than sitting at a constant offset.
+
+5. **Three benchmark artifacts materially shaped the conclusions, and are documented rather
+   than hidden**: a rounding mine in synthetic gold values that had shifted the apparent
+   threshold by a full bit; a priority-ordered failure taxonomy whose labels are
+   indeterminate in specific cells; and strict answer typing that penalized correct
+   computations. Affected results are reported in both strict and corrected form.
 
 ## Repository layout
 
 ```
-polagentbench/
-├── pyproject.toml             # Project metadata + deps (managed by uv)
-├── ruff.toml                  # Lint config
-├── src/polagentbench/
-│   ├── cli.py                 # `polagentbench run` / `run-suite`
-│   ├── protocol.py            # Universal action protocol parser
-│   ├── types.py               # Task, Trajectory, FailureTag, enums
-│   ├── runner.py              # Abstract ModelRunner interface
-│   ├── io.py                  # YAML task loading
-│   ├── environments/
-│   │   ├── base.py            # Environment ABC
-│   │   └── weather.py         # Weather env (5 tools)
-│   ├── inference/
-│   │   ├── prompts.py         # System-prompt builder (PL / EN)
-│   │   └── llama_cpp_runner.py # Agent loop + LlamaCppRunner
-│   └── eval/
-│       └── smoke.py           # Permissive smoke evaluator
-├── tasks/
-│   ├── _examples/             # Dummy task (loader smoke test)
-│   └── smoke/                 # 5 PL-prompt + EN-schema weather tasks
-├── tests/                     # Pytest suite
-└── docs/protocol.md           # Universal action protocol spec
+src/polagentbench/      benchmark engine: types, protocol parser, runner, oracle, stats
+  eval/smoke.py         the oracle - authoritative pass/fail verdict
+  eval/stats.py         bootstrap_ci and paired_mcnemar (stdlib only, no scipy)
+tasks/adversarial/      main67 suite: 15 easy (adv_*) + 52 hard chains
+tasks/ladder_ext/       ladder46 suite: L0/L1/L2/L3N at n=10, L3T at n=6
+tasks/smoke/            5 warm-up tasks
+analysis/               read-only scripts reproducing every table in the paper
+  failure_classifier.py canonical four-way failure taxonomy
+  bootstrap_ci.py       95% intervals for all 18 model x quant cells
+  gen_release_data.py   builds release_data/ from raw run directories
+paper/                  polagentbench_paper.tex (compiles standalone, no .bib needed)
+release_data/           all published data - see below
+tests/                  204 unit tests, no GPU and no data required
+tools/                  suite validators and QA helpers
+docs/                   protocol specification
 ```
 
-## Install
+## Published data
 
-We use [uv](https://github.com/astral-sh/uv) for environment management.
+`release_data/` holds the artifacts the paper promises, from the seven **clean** run
+directories only — runs whose commit stamp matches the released code for `tasks/adversarial`
+and `src/polagentbench/eval`. Four older, superseded run directories are deliberately not
+published; their task definitions and oracle differ from this code, so numbers from them are
+not comparable.
 
-For development (no model inference):
+```
+release_data/
+  matrices/
+    runs.csv                   73 runs: model, quant, suite, repair, pass rate, commit stamp
+    per_task_main67.csv        2,457 rows - one per (run, task) on the 67-task suite
+    per_task_ladder46.csv      1,288 rows - one per (run, task) on the 46-task ladder
+    per_task_variance.csv        402 rows - the T=0.7 three-seed probe
+    matrix_main67_wide.csv        67 rows - tasks as rows, cells as columns
+  trajectories/                73 JSONL files, 4,147 trajectories, 17,221 steps
+  run_logs/                    52 oracle logs (21 runs predate run-log capture)
+  summaries/                   73 summary.json, each stamped with its source commit
+  night_scripts/               historical harness for the 2026-07-29 session
+  NIGHT_LOG.txt                that session's decision log
+```
+
+**Verdicts in the CSVs come from the oracle only.** Where a run log exists it is parsed;
+otherwise verdicts are recomputed with `eval.smoke.evaluate`. Every cell is validated against
+`num_passed` in its `summary.json` — the generator aborts on any mismatch.
+
+The `trajectory_success` column is kept as a **separate** column precisely so you can check
+this yourself: that self-reported flag overstates performance in every cell, most starkly for
+PLLuM at Q8_0, where it claims 66/67 against the oracle's 13/67. It is not a verdict.
+
+## Reproducing
+
+Environment is managed with [uv](https://docs.astral.sh/uv/); `uv.lock` pins
+`llama-cpp-python` to **0.3.19**, the version that produced every run in the paper.
 
 ```bash
-uv sync --extra dev
+uv sync                      # engine, analysis and tests (no GPU needed)
+uv sync --extra inference    # adds llama-cpp-python, needs a C++ toolchain
 ```
 
-To run the smoke suite end-to-end, also install the optional `inference`
-extra (pulls in `llama-cpp-python` — needs a C++ toolchain on Linux/macOS or
-prebuilt CUDA wheels via `pip install llama-cpp-python --extra-index-url
-https://abetlen.github.io/llama-cpp-python/whl/cu124` on a 4090):
-
-```bash
-uv sync --extra dev --extra inference
-```
-
-## Run tests
-
-```bash
-uv run pytest
-```
-
-## Lint
-
-```bash
-uv run ruff check src/ tests/
-uv run ruff format --check src/ tests/
-```
-
-## Smoke suite — running end-to-end
-
-The smoke suite answers one question:
-
-> Does Bielik-Minitron-7B-v3.0-Instruct (Q8_0 GGUF) successfully call the
-> right tool with correct arguments on simple PL-prompt + EN-schema tasks?
-
-Five Polish tasks (`tasks/smoke/`) all target the `weather` environment.
-Pass-rate ≥ 60% on Q8 means the project is feasible and we proceed to the
-full benchmark; below that, the strategy needs a rethink.
-
-### 1. Download the model
-
-Get a GGUF build of Bielik-Minitron-7B-v3.0-Instruct from Hugging Face:
+### Run the suite (needs a GPU and a GGUF file)
 
 ```bash
 huggingface-cli download speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF \
-    Bielik-Minitron-7B-v3.0-Instruct.Q8_0.gguf \
-    --local-dir ./models
-```
+    minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf --local-dir ./models
 
-(Exact GGUF filename / repo may vary across uploaders; pick the one whose
-chat template is ChatML.)
-
-### 2. Run the smoke suite
-
-```bash
-uv run polagentbench run-suite \
-    --model-path ./models/Bielik-Minitron-7B-v3.0-Instruct.Q8_0.gguf \
+polagentbench run-suite \
+    --model-path ./models/minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf \
     --model-id bielik-minitron-7b-v3 \
     --quant Q8_0 \
-    --tasks-dir tasks/smoke/ \
+    --tasks-dir tasks/adversarial \
+    --n-ctx 8192 \
+    --chat-format chatml \
+    --prompt-language pl \
+    --temperature 0.0 \
     --seeds 42 \
-    --output results/smoke_run_001/
+    --output results/my_run
 ```
 
-Expected wall-clock on an RTX 4090: **under 5 minutes** for 5 tasks × 1 seed
-(typical trajectory is 2–4 model turns of <512 generated tokens each).
+`--repair` is off by default and stays off for baseline numbers: repair is a benchmarked
+mitigation, not the baseline. Note the filename prefix is `minitron-Bielik-…`, not
+`Bielik-Minitron-…`, on the publisher's side.
 
-Outputs:
+### Re-score published trajectories (no GPU)
 
+The oracle is the authority, and you can re-run it over the published data:
+
+```python
+import json, sys
+from pathlib import Path
+sys.path.insert(0, "src")
+from polagentbench.io import load_all_tasks
+from polagentbench.types import Trajectory
+from polagentbench.eval.smoke import evaluate, SmokeStatus
+
+tasks = {t.id: t for t in load_all_tasks(Path("tasks/adversarial"))}
+path = "release_data/trajectories/v3_11b_2026-06-18__q8_no_repair.jsonl"
+passed = sum(
+    evaluate(tasks[(r := json.loads(line))["task_id"]],
+             Trajectory.model_validate(r)).status is SmokeStatus.PASS
+    for line in open(path, encoding="utf-8") if line.strip()
+)
+print(passed)          # 54  -> 54/67 = 0.806, the 11B Q8_0 cell of the curve
 ```
-results/smoke_run_001/
-├── trajectories.jsonl   # one Trajectory per line
-└── summary.json         # aggregate pass rate + failure-tag histogram
+
+### Reproduce the paper's tables
+
+```bash
+uv run python analysis/bootstrap_ci.py        # 95% intervals, all 18 cells, seed 42
+uv run python analysis/gen_release_data.py    # rebuilds release_data/ from raw runs
+uv run pytest -q                              # 204 tests
 ```
 
-The console prints a per-task report at the end:
+Every script in `analysis/` is read-only and names its data sources in its docstring.
+Scripts that read raw run directories need those directories present; the published
+`release_data/` is a redistribution of the same content in a flatter layout.
 
-```
-Smoke test results - bielik-minitron-7b-v3 / Q8_0 / seed=42
-============================================================
-weather_smoke_001  ✓  get_weather(city='Kraków') -> final_answer
-weather_smoke_002  ✗  get_weather(city='Lodz') -> final_answer - insufficient_tool_calls
-weather_smoke_003  ✗  send_weather_alert(severity='wysoka', ...) -> ... - language_leakage
-weather_smoke_004  ✓  get_weather(...) -> convert_temperature(...) -> final_answer
-weather_smoke_005  ✓  get_weather(city='Atlantis') -> final_answer
-============================================================
-Success: 3/5 (60%)
-Failure tags: {insufficient_tool_calls: 1, language_leakage: 1, wrong_tool_args: 1}
-```
+## Licensing
 
-## What's in this state of the repo
+Code is **MIT** (`LICENSE`). The data in `release_data/` — trajectories, run logs,
+summaries, outcome matrices, and the historical night-run scripts — is
+**CC BY 4.0** (`release_data/LICENSE`).
 
-- Universal action protocol with a tolerant parser.
-- Core pydantic types (`Task`, `Trajectory`, `TrajectoryStep`) and enums.
-- Abstract `ModelRunner` plus a concrete `LlamaCppRunner` that drives a
-  GGUF model via `llama-cpp-python` and a testable module-level `agent_loop`.
-- A `weather` environment with 5 tools, diacritic normalisation, and an
-  `alerts_sent` log.
-- PL/EN system-prompt builder.
-- Permissive smoke evaluator and CLI (`polagentbench run` / `run-suite`).
-- 5 PL-prompt + EN-schema smoke tasks targeting the failure modes the
-  full benchmark will measure.
+## Citation
 
-What's deliberately **not** here yet: stateful environments (CRM, invoices,
-calendar), constraint validators, recovery scenarios, mitigations, multiple
-language variants beyond `PL_EN`, automatic `FailureTag` inference, the
-HuggingFace dataset export, and the actual benchmark tasks.
+See `CITATION.cff`. The arXiv identifier is filled in once the preprint is posted.
 
-## License
+## Status
 
-MIT.
+Research code accompanying a preprint. The benchmark and the published data are stable;
+the API may still change.

@@ -1,0 +1,21 @@
+llama_context: n_ctx_seq (8192) < n_ctx_train (131072) -- the full capacity of the model will not be utilized
+Smoke test results - llama-pllum-8b / Q8_0 / seed=42
+============================================================
+adv_001   ✗  send_weather_alert() -> final_answer - wrong_tool_args
+adv_002   ✓  get_weather(city='Gdańsk') -> convert_temperature(value=7.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer
+adv_003   ✓  get_weather(city='Łódź') -> final_answer
+adv_004a  ✓  get_weather(city='Świnoujście') -> final_answer
+adv_004b  ✗  get_weather(cities=['Świnoujście', 'Żory']) -> final_answer - expected_tool_not_called
+adv_005   ✓  get_weather(city='Kraków') -> final_answer
+adv_006   ✓  get_weather(city='Poznań') -> send_weather_alert(city='Poznań', severity='low', message='Uwaga, prognozowany deszcz!') -> final_answer
+adv_007   ✓  get_weather(city='Atlantyda') -> final_answer
+adv_008   ✗  get_weather(city='Warszawa') -> send_weather_alert(city='Warszawa', severity='low', message='Uwaga, mgła!') -> parse_error[invalid_json] -> final_answer - invalid_json
+adv_009a  ✗  get_weather(city='Zakopane') -> get_forecast(city='Zakopane', days=3) -> final_answer - expected_tool_not_called, wrong_final_answer
+adv_009b  ✗  send_weather_alert() -> final_answer - wrong_tool_args
+adv_010   ✗  parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] - final_answer_missing, no_json_found
+adv_011   ✓  get_forecast(city='Kraków', days=5) -> final_answer
+adv_012   ✗  get_weather(city='Wrocław') -> send_weather_alert(city='Wrocław', severity='low', message='Pogoda się poprawiła, nie ma powodu do niepokoju.') -> final_answer - loop, wrong_final_answer
+adv_013   ✗  get_weather(city='Gdańsk') -> final_answer - wrong_tool_order
+============================================================
+Success: 7/15 (47%)
+Failure tags: {expected_tool_not_called: 3, final_answer_missing: 1, invalid_json: 1, loop: 1, no_json_found: 5, wrong_final_answer: 2, wrong_tool_args: 2, wrong_tool_order: 1}

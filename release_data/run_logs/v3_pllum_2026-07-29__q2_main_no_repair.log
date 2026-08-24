@@ -1,0 +1,73 @@
+llama_context: n_ctx_seq (8192) < n_ctx_train (131072) -- the full capacity of the model will not be utilized
+Smoke test results - llama-pllum-8b / Q2_K / seed=42
+============================================================
+adv_001                ✗  parse_error[unknown_action] -> final_answer - expected_tool_not_called, unknown_action
+adv_002                ✗  get_forecast() -> convert_temperature() -> final_answer - wrong_tool_order, expected_tool_not_called, wrong_tool_args
+adv_003                ✗  final_answer - expected_tool_not_called
+adv_004a               ✗  parse_error[no_json_found] -> final_answer - expected_tool_not_called, no_json_found
+adv_004b               ✗  get_weather(city='Żory') -> final_answer - expected_tool_not_called
+adv_005                ✗  parse_error[no_json_found] -> final_answer - expected_tool_not_called, wrong_tool_args, hallucinated_tool_result, no_json_found
+adv_006                ✗  get_forecast() -> send_weather_alert(city='Poznań', severity='low', message='No worries, just checking in with an update on the weather in Poznania!') -> convert_temperature(value=20, from_unit='celsius', to_unit='fahrenheit') -> find_nearest_city(reference_city='Warszawa', max_distance_km=10) -> find_nearest_city(reference_city='Warszawa', max_distance_km=10) - expected_tool_not_called, final_answer_missing
+adv_007                ✗  get_weather(city='Atlanta') -> final_answer - wrong_final_answer
+adv_008                ✗  get_forecast() -> send_weather_alert(city='Warszawa', severity='low', message='No alarm!') -> final_answer - expected_tool_not_called
+adv_009a               ✗  parse_error[unknown_action] -> final_answer - expected_tool_not_called, wrong_final_answer, unknown_action
+adv_009b               ✗  parse_error[unknown_action] -> final_answer - expected_tool_not_called, unknown_action
+adv_010                ✗  parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] - final_answer_missing, no_json_found
+adv_011                ✓  get_forecast(city='Kraków', days=5) -> final_answer
+adv_012                ✗  parse_error[schema_violation] -> final_answer - expected_tool_not_called, wrong_final_answer, schema_violation
+adv_013                ✗  get_forecast(city='Gdańsk', days=3) -> find_nearest_city(reference_city='Gdańsk', max_distance_km=50) -> get_forecast(city='Sopot', days=3) -> final_answer - wrong_tool_order
+v3_arith_L0_a          ✗  convert_temperature(value=7.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call, wrong_final_answer
+v3_arith_L0_b          ✗  convert_temperature(value=8.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call, wrong_final_answer
+v3_arith_L0_c          ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> final_answer - wrong_final_answer, unknown_action
+v3_arith_L1_a          ✗  get_forecast(city='Łódź', days=4) -> final_answer - wrong_final_answer
+v3_arith_L1_b          ✗  get_forecast(city='Warszawa', days=4) -> final_answer - wrong_final_answer
+v3_arith_L1_c          ✗  get_forecast(city='Kraków', days=4) -> final_answer - wrong_final_answer
+v3_arith_L2_a          ✗  convert_temperature(value=10.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_arith_L2_b          ✗  convert_temperature(value=10.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_arith_L2_c          ✗  convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order
+v3_arith_L3_a          ✗  get_forecast(city='Warszawa', days=4) -> convert_temperature(value=20.0, from_unit='celsius', to_unit='fahrenheit') -> find_nearest_city(reference_city='Warszawa', max_distance_km=113) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_arith_L3_b          ✗  get_forecast(city='Łódź', days=4) -> convert_temperature(value=20.0, from_unit='celsius', to_unit='fahrenheit') -> find_nearest_city(reference_city='Łódź', max_distance_km=113) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_arith_L3_c          ✗  get_forecast(city='Katowice', days=4, to_unit='Fahrenheit') -> convert_temperature(value=8.0, from_unit='celsius', to_unit='Fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_001           ✗  get_forecast(city='Warszawa', days=4) -> convert_temperature(value=20.0, from_unit='celsius', to_unit='fahrenheit') -> find_nearest_city(reference_city='Warszawa', max_distance_km=113) -> final_answer - wrong_tool_order
+v3_chain_001_arith     ✗  get_forecast(city='Warszawa', days=4) -> convert_temperature(value=20.0, from_unit='celsius', to_unit='fahrenheit') -> find_nearest_city(reference_city='Warszawa', max_distance_km=113) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_002           ✗  get_forecast(city='Łódź', days=4, to_unit='Fahrenheit') -> convert_temperature(value=0.0, from_unit='Fahrenheit', to_unit='Celsius') -> final_answer - wrong_tool_order
+v3_chain_003           ✗  convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order
+v3_chain_004           ✗  get_forecast(city='Łódź', days=4) -> convert_temperature(value=20.0, from_unit='celsius', to_unit='fahrenheit') -> find_nearest_city(reference_city='Łódź', max_distance_km=113) -> final_answer - wrong_tool_order
+v3_chain_004_arith     ✗  get_forecast(city='Łódź', days=4) -> convert_temperature(value=20.0, from_unit='celsius', to_unit='fahrenheit') -> find_nearest_city(reference_city='Łódź', max_distance_km=113) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_005           ✗  get_forecast(city='Katowice', days=4, to_unit='Fahrenheit') -> convert_temperature(value=8.0, from_unit='celsius', to_unit='Fahrenheit') -> final_answer - wrong_tool_order
+v3_chain_005_arith     ✗  get_forecast(city='Katowice', days=4, max_distance_km=80) -> convert_temperature(value=20.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_006           ✗  get_forecast(city='Gdańsk', days=1) -> convert_temperature(value=6.8, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order
+v3_chain_006_arith     ✗  get_forecast(city='Gdańsk', days=1) -> convert_temperature(value=6.8, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_007           ✗  get_forecast(city='Warszawa', days=4) -> convert_temperature(value=20.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order
+v3_chain_007_arith     ✗  get_forecast(city='Warszawa', days=4) -> convert_temperature(value=20.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_008           ✗  get_forecast(city='Gdańsk', days=5, max_distance_km=60, severity='low', message="There's a low-severity weather alert for the city of interest, which is 10°C or less.") -> final_answer - wrong_tool_order
+v3_chain_009           ✗  get_forecast(city='Łódź', days=6) -> convert_temperature(value=6.5, from_unit='celsius', to_unit='fahrenheit') -> find_nearest_city(reference_city='Łódź', max_distance_km=120) -> final_answer - wrong_tool_order
+v3_chain_010           ✗  get_forecast(city='Kraków', days=4) -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order
+v3_chain_010_arith     ✗  get_forecast(city='Kraków', days=4) -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_011           ✗  get_forecast(city='Gdynia', days=1) -> convert_temperature(value=7.2, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order
+v3_chain_012           ✗  get_forecast(city='Wrocław', days=3) -> final_answer - wrong_tool_order
+v3_chain_013           ✗  convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order
+v3_chain_014           ✗  get_forecast(city='Gdańsk', days=5) -> send_weather_alert(city='Gdańsk', severity='medium', message='Watch out for strong winds!') -> convert_temperature(value=20, from_unit='celsius', to_unit='fahrenheit') -> find_nearest_city(reference_city='Kraków', max_distance_km=1) -> final_answer - wrong_tool_order
+v3_chain_015           ✗  convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_016           ✗  get_forecast(city='Łódź', days=4) -> final_answer - wrong_tool_order
+v3_chain_en_001        ✗  get_forecast(city='Paryż', days=4) -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order
+v3_chain_en_001_arith  ✗  get_forecast(city='Paryż', days=4) -> convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_en_002        ✗  get_weather(city='Paryż') -> convert_temperature(value=20.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order
+v3_chain_en_003        ✗  get_forecast(city='Londyn', days=4) -> convert_temperature(value=10.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order
+v3_chain_en_003_arith  ✗  get_forecast(city='Londyn', days=4) -> convert_temperature(value=10.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_en_004        ✗  get_forecast() -> final_answer - wrong_tool_order
+v3_chain_en_004_arith  ✗  get_forecast() -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_en_005        ✗  get_forecast(city='Helsinki', days=4) -> convert_temperature(value=2.0, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=35.6, from_unit='fahrenheit', to_unit='celsius') -> find_nearest_city(reference_city='Kraków', max_distance_km=1) -> final_answer - wrong_tool_order
+v3_chain_en_005_arith  ✗  get_forecast(city='Helsinki', days=4) -> convert_temperature(value=2.0, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=35.6, from_unit='fahrenheit', to_unit='celsius') -> find_nearest_city(reference_city='Kraków', max_distance_km=1) -> final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_en_006        ✗  final_answer - wrong_tool_order
+v3_chain_en_007        ✗  final_answer - wrong_tool_order
+v3_chain_en_008        ✗  get_forecast(city='Wiedeń', days=5, severity='medium', message='W Wiedniu będzie 12°C lub mniej') -> final_answer - wrong_tool_order
+v3_chain_en_009        ✗  final_answer - wrong_tool_order
+v3_chain_en_010        ✗  final_answer - wrong_tool_order
+v3_chain_en_011        ✗  final_answer - wrong_tool_order
+v3_chain_en_012        ✗  final_answer - wrong_tool_order
+v3_chain_en_013        ✗  final_answer - wrong_tool_order, wrong_final_answer
+v3_chain_en_014        ✗  final_answer - wrong_tool_order
+============================================================
+Success: 1/67 (1%)
+Failure tags: {expected_tool_not_called: 14, final_answer_missing: 2, hallucinated_tool_result: 1, no_json_found: 7, schema_violation: 1, unexpected_tool_call: 2, unknown_action: 6, wrong_final_answer: 26, wrong_tool_args: 2, wrong_tool_order: 48}

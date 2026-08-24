@@ -1,0 +1,25 @@
+{
+  "model_id": "bielik-11b-v3",
+  "quant": "Q4_K_M",
+  "repair": false,
+  "num_tasks": 67,
+  "num_trajectories": 67,
+  "num_passed": 36,
+  "num_inconclusive": 0,
+  "num_total": 67,
+  "success_rate": 0.5373,
+  "repair_applied_steps": 0,
+  "failure_tag_counts": {
+    "no_json_found": 5,
+    "final_answer_missing": 23,
+    "unknown_action": 50,
+    "unexpected_tool_call": 3,
+    "invalid_json": 2,
+    "schema_violation": 27,
+    "wrong_final_answer": 7,
+    "wrong_tool_order": 19,
+    "timeout": 14
+  },
+  "commit_hash": "a023c3b2c239b57d700b174ac92b5d166c7e6f6a",
+  "git_ref": "a023c3b"
+}

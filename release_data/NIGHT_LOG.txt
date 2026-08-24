@@ -1,0 +1,200 @@
+================================================================
+PolAgentBench — RUN NOCNY 2026-07-29 | HEAD e584b38 | box 46147751
+================================================================
+FAZA 0 — wszystkie bramki GREEN:
+  git rev-parse HEAD = e584b38ec7045f37bfe3c42c402ca25995c8b2e7 (czyste, tylko untracked)
+  tasks/adversarial/*.yaml = 67   (oczekiwane 67)  OK
+  tasks/ladder_ext/*.yaml  = 46   (oczekiwane 46)  OK
+  pytest -q = 204 passed          (oczekiwane 204) OK
+  GPU = NVIDIA GeForce RTX 4090, 24564 MiB | CUDA 12.6 | driver 560.35.03
+  dysk = overlay 32G (32G wolne przed modelami) | .venv 5.7G
+  llama-cpp-python 0.3.19 (prebuilt cu124 wheel) + nvidia-cu12 libs, gpu_offload=True
+[22:57] DECYZJA | VRAM 24564 MiB >= 20 GB -> PLAN PELNY, fazy 1-5 (wszystkie). Zaden kwant nie wymaga czesciowego offloadu: najwiekszy plik nocy to 11B Q8_0 ~12 GB < 24 GB.
+[22:57] DECYZJA | FAZA 4: repozytorium speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF ZAWIERA publiczne Q6_K i Q5_K_M (sprawdzone list_repo_files). Prompt zakladal ze ich nie ma. Uzywam plikow publicznych, NIE requantize — bo oryginalna krzywa 6-punktowa 7B (2026-06-02) tez wzięła Q6/Q5 z release HF, a requantize z Q8_0 wprowadzilby niezgodnosc receptury wzgledem tamtych punktow.
+[22:57] DECYZJA | CLI run-suite nie ma trybu wielu suite/repair w jednym wywolaniu, a zmiana kodu jest zabroniona (regula 5). Kazdy z 4 runow na kwant = osobne zaladowanie modelu. Koszt: kilkanascie sekund z page cache, pomijalny wzgledem czasu runu. Wagi kwantu pobierane RAZ.
+[22:57] download | mradermacher/Llama-PLLuM-8B-instruct-GGUF | Llama-PLLuM-8B-instruct.Q8_0.gguf
+overlay          32G   14G   19G  43% /
+[23:00] DECYZJA | BRAMKA B: peak prompt_tokens = 2308 (kontrola 10-krokowa v3_chain_en_013, najdluzszy lancuch w suicie; trzy 8-krokowe L3 daly 1130-1474). Prog 7000 nieosiagniety -> n_ctx ZOSTAJE 8192, bez asymetrii wobec runow Bielika.
+[23:00] DECYZJA | BRAMKA A: --chat-format llama-3 daje poprawny polski, finish_reason=stop, zero artefaktow szablonu. Uzywam llama-3 dla calej krzywej PLLuM, chatml/mistral-instruct niepotrzebne.
+[23:00] DECYZJA | Easy tier (15 adv_*) skopiowany do night/easy_tier/ + symlink na states/ — tasks/ NIETKNIETE (regula 5).
+[23:00] FAZA1-BRAMKA-C | llama-pllum-8b | Q8_0 | easy | off | 6/15 | 0min
+[23:03] FAZA1-BRAMKA-C | llama-pllum-8b | Q8_0 | easy | on | 7/15 | 0min
+[23:04] ALERT | BRAMKA C NIEZDANA: PLLuM-8B Q8_0 easy tier = 0.400 (6/15) repair off, 0.467 (7/15) repair on. OBIE ponizej progu 0.5 -> wg reguly FAZA 1 (pelna krzywa 6 kwantow) POMINIETA, przechodze do FAZY 2.
+[23:04] DIAGNOZA BRAMKI C (dowody w results/v3_pllum_2026-07-29/_gateC_*): to NIE jest wada konfiguracji.
+[23:04]   1. BRAMKA A czysta: poprawna polszczyzna, finish_reason=stop, zero artefaktow szablonu.
+[23:04]   2. System prompt DOCIERA nienaruszony — zrenderowany przez handler llama-3 zawiera pelny slownik akcji (call_tool/final_answer) i liste narzedzi; zweryfikowane przez inspekcje res.prompt.
+[23:04]   3. Model mimo to wymysla akcje najwyzszego poziomu: emituje {\"action\":\"send_weather_alert\"} zamiast {\"action\":\"call_tool\",\"tool\":\"send_weather_alert\"} -> parse_error unknown_action x5, no_json_found x5.
+[23:04]   4. Halucynuje sukces: final_answer twierdzi ze alert wyslany, a final_state alerts_sent=[] — dlatego flaga trajectory.success daje 14/15, a oracle 6/15. Oracle kanoniczny (zgodnie z metodologia projektu).
+[23:04]   5. repair usuwa unknown_action (5->0) ale nie no_json_found; zysk tylko +1 task.
+[23:04] WNIOSEK: 0.40 to POMIAR, nie awaria. PLLuM-8B nie trzyma koperty akcji tam gdzie Bielik-7B Q8 daje 0.9333 na tym samym tierze. Rekomendacja na rano: to jest finding sam w sobie.
+[23:04] DECYZJA | Bramka C repair=on (1 run, 26s) dobiegla poza litera reguly, bo kosztowala <1 min a rozstrzyga czy niski wynik to koperta czy tresc. Uzasadnienie: bez niej nie dalo sie odroznic awarii formatu od braku zdolnosci.
+[23:04] DECYZJA | POMIAR CZASU: 15 taskow easy + zaladowanie modelu = 26.5 s wall-clock na 4090. Budzet nocy jest DUZO wiekszy niz plan. Jesli po fazach 2-5 zostanie czas, wroce do krzywej PLLuM jako BONUS (ponownie pobierajac model) i oznacze ja wyraznie jako uzupelnienie po niezdanej bramce.
+[23:04] scp+verify OK dla v3_pllum_2026-07-29 (2 summary.json) -> model PLLuM Q8_0 skasowany.
+[23:05] === FAZA2 START | bielik-11b-v3 | suite=ladder | kwanty: Q8_0:q8 Q4_K_M:q4 Q3_K_M:q3 Q2_K:q2 ===
+[23:05] download | DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF | speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf
+overlay          32G   17G   16G  53% /
+[23:06] ALERT | FAZA2 | bielik-11b-v3 | Q8_0 | ladder | off | rc=1 — run failed, skipped. tail:     raise ValueError(f"Model path does not exist: {model_path}") ValueError: Model path does not exist: [23:05] download | DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF | speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf /workspace/polagentbench/models/speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf 
+[23:06] ALERT | FAZA2 | bielik-11b-v3 | Q8_0 | ladder | on | rc=1 — run failed, skipped. tail:     raise ValueError(f"Model path does not exist: {model_path}") ValueError: Model path does not exist: [23:05] download | DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF | speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf /workspace/polagentbench/models/speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf 
+[23:06] waiting for scp ack: v3_11b_ladder_2026-07-29_q8
+[23:11] ALERT | FAZA2 pierwszy start nieudany: blad w MOIM harnessie night/lib.sh (funkcja note pisala na stdout, wiec MP=$(fetch_model) wciagnelo linie logu do sciezki modelu -> ValueError: Model path does not exist). Naprawione: note pisze na stderr. Model Q8_0 byl pobrany poprawnie, zero utraconych obliczen, restart fazy. src/ i tasks/ NIETKNIETE.
+[23:11] === FAZA2 START | bielik-11b-v3 | suite=ladder | kwanty: Q8_0:q8 Q4_K_M:q4 Q3_K_M:q3 Q2_K:q2 ===
+overlay          32G   17G   16G  53% /
+[23:15] FAZA2 | bielik-11b-v3 | Q8_0 | ladder | off | 13/46 | 4min
+[23:18] FAZA2 | bielik-11b-v3 | Q8_0 | ladder | on | 13/46 | 4min
+[23:18] waiting for scp ack: v3_11b_ladder_2026-07-29_q8
+[23:19] FAZA2 | Q8_0 | scp potwierdzony -> model skasowany | 26G wolne
+[23:19] download | DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF | speakleash.Bielik-11B-v3.0-Instruct.Q4_K_M.gguf
+overlay          32G   13G   20G  39% /
+[23:21] DECYZJA | FAZA3 kolejnosc kwantow zmieniona z Q8/Q4/Q3/Q2 na Q8/Q3/Q2/Q4. Powod: Q3_K_M i Q2_K powstaja przez requantize Z Q8_0, wiec Q8_0 musi dozyc do konca obu derywatow. Wyniki identyczne, oszczedza jedno pobranie 7.9 GB.
+[23:21] DECYZJA | FAZA3 wyjatek od reguly "nigdy dwa modele naraz": llama-quantize z definicji wymaga zrodla i celu jednoczesnie (Q8_0 7.9 GB + Q3_K_M ~3.9 GB = ~11.8 GB szczytu przy 26 GB wolnych). Ograniczone i nieuniknione; w kazdej chwili tylko JEDEN model jest ladowany do GPU i benchmarkowany.
+[23:21] DECYZJA | llama-quantize zbudowany CPU-only (GGML_CUDA=OFF, LLAMA_CURL=OFF) rownolegle do FAZY 2 — build nie dotyka GPU, wiec nie zaburzyl pomiarow. Status BUILD_OK.
+[23:23] FAZA2 | bielik-11b-v3 | Q4_K_M | ladder | off | 1/46 | 3min
+[23:26] FAZA2 | bielik-11b-v3 | Q4_K_M | ladder | on | 7/46 | 3min
+[23:26] waiting for scp ack: v3_11b_ladder_2026-07-29_q4
+[23:27] FAZA2 | Q4_K_M | scp potwierdzony -> model skasowany | 26G wolne
+[23:27] download | DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF | speakleash.Bielik-11B-v3.0-Instruct.Q3_K_M.gguf
+overlay          32G   12G   21G  35% /
+[23:29] FAZA2 | bielik-11b-v3 | Q3_K_M | ladder | off | 32/46 | 2min
+[23:30] FAZA2 | bielik-11b-v3 | Q3_K_M | ladder | on | 32/46 | 2min
+[23:30] waiting for scp ack: v3_11b_ladder_2026-07-29_q3
+[23:31] FAZA2 | Q3_K_M | scp potwierdzony -> model skasowany | 26G wolne
+[23:31] download | DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF | speakleash.Bielik-11B-v3.0-Instruct.Q2_K.gguf
+[23:31] ALERT | FAZA2 ladder: ranking kwantow jest ZANIECZYSZCZONY typowaniem JSON, NIE czytac go jako czystej miary zdolnosci.
+[23:31]   Fakty: Q8_0 13/46, Q4_K_M 1/46, Q3_K_M 32/46 (repair off). Q3 bije Q8 o 19 zadan.
+[23:31]   Mechanizm: 100% naruszen schematu to JEDEN wzorzec — model zwraca {\"action\":\"final_answer\",\"answer\": 54.2} czyli LICZBE, a schemat wymaga stringa; pydantic odrzuca (tagged-union[CallTool,FinalAnswer], answer: string_type).
+[23:31]   Skala: Q8_0 = 101 takich naruszen w 23 z 46 zadan (przy 33 porazkach ogolem, czyli ~70% porazek Q8 dotyka tego typowania). Q4_K_M = 119 w 27 zadaniach. Q3_K_M = 0 (zero naruszen schematu w ogole).
+[23:31]   repair NIE naprawia tego: q8_repair ma identyczne 101 naruszen w 23 zadaniach, wynik 13/46 bez zmian.
+[23:31]   UWAGA metodologiczna: to NIE znaczy ze te 23 zadania to darmowe punkty. Kontrprzyklad v3_ext_L1_b: golden 48.2, Q8 odpowiedzial 54.2 — liczba tez merytorycznie zla. Podzial na SKROT (format) vs PRAWDZIWY (tresc) = etap analizy, zgodnie z Twoja instrukcja NIE robie go dzis.
+[23:31]   Dane do tego podzialu SA zachowane: raw_model_output kazdego kroku jest w trajectories.jsonl, wiec tolerancyjne przeliczenie zrobi sie offline, bez powtarzania runu na GPU.
+[23:31] DECYZJA | Nie zmieniam schematu ani kodu (regula 5). Run leci dalej bez zmian — caveat jest do raportu, nie do naprawy w nocy.
+overlay          32G   10G   23G  32% /
+[23:33] FAZA2 | bielik-11b-v3 | Q2_K | ladder | off | 0/46 | 1min
+[23:34] FAZA2 | bielik-11b-v3 | Q2_K | ladder | on | 0/46 | 1min
+[23:34] waiting for scp ack: v3_11b_ladder_2026-07-29_q2
+[23:35] FAZA2 | Q2_K | scp potwierdzony -> model skasowany | 26G wolne
+[23:35] === FAZA2 DONE ===
+[23:35] === FAZA3 START | bielik-minitron-7b-v3 | suite=ladder | Q8_0, Q3_K_M(req), Q2_K(req), Q4_K_M ===
+[23:35] download | speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF | minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf
+overlay          32G   14G   19G  43% /
+[23:41] FAZA3 | bielik-minitron-7b-v3 | Q8_0 | ladder | off | 2/46 | 6min
+[23:46] FAZA3 | bielik-minitron-7b-v3 | Q8_0 | ladder | on | 3/46 | 4min
+[23:46] waiting for scp ack: v3_7b_ladder_2026-07-29_q8
+[23:46] requantize | Q8_0 -> Q3_K_M
+[23:47] requantize OK | Q3_K_M | 3.4G | 16G wolne
+[23:58] FAZA3 | bielik-minitron-7b-v3 | Q3_K_M | ladder | off | 2/46 | 11min
+[00:08] FAZA3 | bielik-minitron-7b-v3 | Q3_K_M | ladder | on | 2/46 | 11min
+[00:08] waiting for scp ack: v3_7b_ladder_2026-07-29_q3
+[00:09] FAZA3 | Q3_K_M | scp potwierdzony -> skasowany
+[00:09] requantize | Q8_0 -> Q2_K
+[00:10] requantize OK | Q2_K | 2.7G | 16G wolne
+[00:22] FAZA3 | bielik-minitron-7b-v3 | Q2_K | ladder | off | 0/46 | 12min
+[00:34] FAZA3 | bielik-minitron-7b-v3 | Q2_K | ladder | on | 0/46 | 12min
+[00:34] waiting for scp ack: v3_7b_ladder_2026-07-29_q2
+[00:35] FAZA3 | Q2_K | scp potwierdzony -> skasowany
+[00:35] FAZA3 | Q8_0 | scp potwierdzony -> skasowany
+[00:35] download | speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF | minitron-Bielik-7B-v3.0-Instruct-GGUF.Q4_K_M.gguf
+overlay          32G   11G   22G  33% /
+[00:41] FAZA3 | bielik-minitron-7b-v3 | Q4_K_M | ladder | off | 1/46 | 5min
+[00:45] FAZA3 | bielik-minitron-7b-v3 | Q4_K_M | ladder | on | 9/46 | 5min
+[00:45] waiting for scp ack: v3_7b_ladder_2026-07-29_q4
+[00:46] FAZA3 | Q4_K_M | scp potwierdzony -> skasowany
+[00:46] === FAZA3 DONE ===
+[00:46] === FAZA4 START | bielik-minitron-7b-v3 | suite=main | kwanty: Q6_K:q6 Q5_K_M:q5 ===
+[00:46] download | speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF | minitron-Bielik-7B-v3.0-Instruct-GGUF.Q6_K.gguf
+[00:46] OBSERWACJA (do analizy, nie zmienia planu): zysk z repair na ladderze jest SKONCENTROWANY na Q4_K_M i powtarza sie na dwoch niezaleznych modelach.
+[00:46]   11B: Q8 13->13 (0), Q4 1->7 (+6), Q3 32->32 (0), Q2 0->0 (0)
+[00:46]   7B : Q8 2->3 (+1), Q4 1->9 (+8), Q3 2->2 (0), Q2 0->0 (0)
+[00:46]   Czyli repair nie pomaga ani gdy model trzyma format (Q8/Q3), ani gdy jest juz rozlozony (Q2) — tylko w waskim pasmie Q4, gdzie psuje sie skladnia, ale tresc jeszcze zyje.
+overlay          32G   12G   21G  37% /
+[00:50] FAZA4 | bielik-minitron-7b-v3 | Q6_K | main | off | 31/67 | 3min
+[00:53] FAZA4 | bielik-minitron-7b-v3 | Q6_K | main | on | 38/67 | 3min
+[00:53] waiting for scp ack: v3_7b_grid_2026-07-29_q6
+[00:54] FAZA4 | Q6_K | scp potwierdzony -> model skasowany | 26G wolne
+[00:54] download | speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF | minitron-Bielik-7B-v3.0-Instruct-GGUF.Q5_K_M.gguf
+overlay          32G   11G   22G  35% /
+[01:04] FAZA4 | bielik-minitron-7b-v3 | Q5_K_M | main | off | 35/67 | 10min
+[01:14] FAZA4 | bielik-minitron-7b-v3 | Q5_K_M | main | on | 40/67 | 10min
+[01:14] waiting for scp ack: v3_7b_grid_2026-07-29_q5
+[01:15] FAZA4 | Q5_K_M | scp potwierdzony -> model skasowany | 26G wolne
+[01:15] === FAZA4 DONE ===
+[01:15] === FAZA5 START | bielik-11b-v3 | main suite | T=0.7 | seedy 1,2,3 | repair off ===
+[01:15] download | DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF | speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf
+overlay          32G   18G   15G  54% /
+[01:23] FAZA5 | bielik-11b-v3 | Q8_0 | main-T0.7-seed1 | off | 8/67 | 7min
+[01:27] FAZA5 | bielik-11b-v3 | Q8_0 | main-T0.7-seed2 | off | 49/67 | 5min
+[01:28] OBSERWACJA FAZA5 — wariancja przy T=0.7 to NIE szum punktowy, tylko bistabilnosc trybu protokolu.
+[01:28]   11B Q8_0 main, T=0.7, ten sam model i kwant, rozny TYLKO seed: seed1 = 8/67 (0.119), seed2 = 49/67 (0.731). Roznica ~6x.
+[01:28]   Rozbicie bledow parsowania pokazuje mechanizm, nie przypadek:
+[01:28]     seed1: unknown_action=109, no_json_found=12, schema_violation=20
+[01:28]     seed2: unknown_action= 22, no_json_found= 4, schema_violation=11
+[01:28]   Czyli przy seed1 model wpadl w tryb WYMYSLANIA nazw akcji (5x czesciej) i juz z niego nie wyszedl. To ten sam defekt, ktory zabil PLLuM na bramce C — tu pojawia sie u Bielika, ale dopiero pod probkowaniem.
+[01:28] ALERT | Wniosek do raportu: przy T>0 pojedynczy seed NIE jest reprezentatywny dla tego benchmarku. Kazda liczba z T=0.7 raportowana bez rozrzutu po seedach jest mylaca.
+[01:28] DROBIAZG do analizy: summary.json nie zapisuje pol seed ani temperature na najwyzszym poziomie (oba None) — przypisanie runu do seeda idzie WYLACZNIE z nazwy katalogu (q8_seed1/2/3). Nie mylic przy skladaniu tabel.
+[01:32] FAZA5 | bielik-11b-v3 | Q8_0 | main-T0.7-seed3 | off | 48/67 | 5min
+[01:32] waiting for scp ack: v3_11b_variance_2026-07-29_q8
+[01:33] FAZA5 | Q8_0 | scp potwierdzony -> model skasowany | 26G wolne
+[01:33] download | DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF | speakleash.Bielik-11B-v3.0-Instruct.Q3_K_M.gguf
+overlay          32G   12G   21G  35% /
+[01:39] FAZA5 | bielik-11b-v3 | Q3_K_M | main-T0.7-seed1 | off | 13/67 | 5min
+[01:42] FAZA5 | bielik-11b-v3 | Q3_K_M | main-T0.7-seed2 | off | 43/67 | 2min
+[01:44] FAZA5 | bielik-11b-v3 | Q3_K_M | main-T0.7-seed3 | off | 51/67 | 3min
+[01:44] waiting for scp ack: v3_11b_variance_2026-07-29_q3
+[01:45] FAZA5 macierz kompletna (11B, main 67, T=0.7, repair off):
+[01:45]     Q8_0   : seed1=8/67 (0.119)  seed2=49/67 (0.731)  seed3=48/67 (0.716)
+[01:45]     Q3_K_M : seed1=13/67 (0.194) seed2=43/67 (0.642)  seed3=51/67 (0.761)
+[01:45] ALERT | Efekt seed=1 jest SYSTEMATYCZNY, nie losowy: zapada sie na OBU kwantach niezaleznie (Q8 i Q3), podczas gdy seedy 2 i 3 na obu daja 0.64-0.76. Rozklad jest DWUMODALNY — srednia (Q8: 35/67) nie opisuje zadnego z dwoch trybow i nie nalezy jej raportowac jako punktu.
+[01:45]   Trop mechanizmu z kodu (src/polagentbench/inference/llama_cpp_runner.py): ten SAM seed jest podawany do create_chat_completion przy KAZDYM kroku petli, a nie raz na run. Przy T=0.7 oznacza to restart stanu samplera z tej samej wartosci w kazdym kroku, wiec pechowa wartosc moze sie utrwalac przez cala trajektorie zamiast usredniac. To hipoteza do sprawdzenia na etapie analizy, NIE zmieniam kodu (regula 5).
+[01:45]   Konsekwencja praktyczna: 3 seedy to za malo, zeby oszacowac srednia. Do akapitu o wariancji raportowac rozrzut i udzial trybu zapadnietego, nie punkt +/- sd.
+[01:45] FAZA5 | Q3_K_M | scp potwierdzony -> model skasowany | 26G wolne
+[01:45] === FAZA5 DONE ===
+[01:45] === CHAIN 3-4-5 DONE ===
+[01:46] === BONUS-PLLUM START (po zamknieciu planu; bramka C byla niezdana) ===
+[01:46] download | mradermacher/Llama-PLLuM-8B-instruct-GGUF | Llama-PLLuM-8B-instruct.Q8_0.gguf
+overlay          32G   15G   18G  44% /
+[01:49] BONUS-PLLUM | llama-pllum-8b | Q8_0 | main | off | 13/67 | 3min
+[01:51] BONUS-PLLUM | llama-pllum-8b | Q8_0 | main | on | 15/67 | 3min
+[01:53] BONUS-PLLUM | llama-pllum-8b | Q8_0 | ladder | off | 2/46 | 1min
+[01:54] BONUS-PLLUM | llama-pllum-8b | Q8_0 | ladder | on | 2/46 | 1min
+[01:54] waiting for scp ack: v3_pllum_2026-07-29_q8
+[01:55] BONUS | Q8_0 | scp potwierdzony -> model skasowany | 26G wolne
+[01:55] download | mradermacher/Llama-PLLuM-8B-instruct-GGUF | Llama-PLLuM-8B-instruct.Q4_K_M.gguf
+overlay          32G   11G   22G  34% /
+[01:59] BONUS-PLLUM | llama-pllum-8b | Q4_K_M | main | off | 15/67 | 3min
+[02:02] BONUS-PLLUM | llama-pllum-8b | Q4_K_M | main | on | 17/67 | 3min
+[02:04] BONUS-PLLUM | llama-pllum-8b | Q4_K_M | ladder | off | 0/46 | 2min
+[02:06] BONUS-PLLUM | llama-pllum-8b | Q4_K_M | ladder | on | 0/46 | 2min
+[02:06] waiting for scp ack: v3_pllum_2026-07-29_q4
+[02:07] BONUS | Q4_K_M | scp potwierdzony -> model skasowany | 26G wolne
+[02:07] download | mradermacher/Llama-PLLuM-8B-instruct-GGUF | Llama-PLLuM-8B-instruct.Q2_K.gguf
+overlay          32G  9.1G   23G  29% /
+[02:08] BONUS-PLLUM | llama-pllum-8b | Q2_K | main | off | 1/67 | 1min
+[02:08] BONUS-PLLUM | llama-pllum-8b | Q2_K | main | on | 1/67 | 1min
+[02:09] BONUS-PLLUM | llama-pllum-8b | Q2_K | ladder | off | 0/46 | 0min
+[02:09] BONUS-PLLUM | llama-pllum-8b | Q2_K | ladder | on | 0/46 | 0min
+[02:09] waiting for scp ack: v3_pllum_2026-07-29_q2
+[02:11] BONUS | Q2_K | scp potwierdzony -> model skasowany | 26G wolne
+[02:11] download | mradermacher/Llama-PLLuM-8B-instruct-GGUF | Llama-PLLuM-8B-instruct.Q6_K.gguf
+overlay          32G   13G   20G  39% /
+[02:14] BONUS-PLLUM | llama-pllum-8b | Q6_K | main | off | 12/67 | 3min
+[02:17] BONUS-PLLUM | llama-pllum-8b | Q6_K | main | on | 14/67 | 3min
+[02:18] BONUS-PLLUM | llama-pllum-8b | Q6_K | ladder | off | 0/46 | 1min
+[02:19] BONUS-PLLUM | llama-pllum-8b | Q6_K | ladder | on | 0/46 | 1min
+[02:19] waiting for scp ack: v3_pllum_2026-07-29_q6
+[02:21] BONUS | Q6_K | scp potwierdzony -> model skasowany | 26G wolne
+[02:21] download | mradermacher/Llama-PLLuM-8B-instruct-GGUF | Llama-PLLuM-8B-instruct.Q5_K_M.gguf
+overlay          32G   12G   21G  36% /
+[02:24] BONUS-PLLUM | llama-pllum-8b | Q5_K_M | main | off | 7/67 | 2min
+[02:26] BONUS-PLLUM | llama-pllum-8b | Q5_K_M | main | on | 9/67 | 2min
+[02:27] BONUS-PLLUM | llama-pllum-8b | Q5_K_M | ladder | off | 0/46 | 1min
+[02:28] BONUS-PLLUM | llama-pllum-8b | Q5_K_M | ladder | on | 0/46 | 1min
+[02:28] waiting for scp ack: v3_pllum_2026-07-29_q5
+[02:30] BONUS | Q5_K_M | scp potwierdzony -> model skasowany | 26G wolne
+[02:30] download | mradermacher/Llama-PLLuM-8B-instruct-GGUF | Llama-PLLuM-8B-instruct.Q3_K_M.gguf
+overlay          32G  9.9G   23G  31% /
+[02:32] BONUS-PLLUM | llama-pllum-8b | Q3_K_M | main | off | 15/67 | 3min
+[02:35] BONUS-PLLUM | llama-pllum-8b | Q3_K_M | main | on | 18/67 | 3min
+[02:37] BONUS-PLLUM | llama-pllum-8b | Q3_K_M | ladder | off | 0/46 | 1min
+[02:38] BONUS-PLLUM | llama-pllum-8b | Q3_K_M | ladder | on | 0/46 | 1min
+[02:38] waiting for scp ack: v3_pllum_2026-07-29_q3
+[02:39] BONUS | Q3_K_M | scp potwierdzony -> model skasowany | 26G wolne
+[02:39] === BONUS-PLLUM DONE ===

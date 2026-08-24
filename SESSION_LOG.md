@@ -304,7 +304,7 @@ Instancja 41522333 — self-auth destroy próbowany na końcu (znana odchyłka t
 
 Pierwszy run 11B (dense, nie Minitron): DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF — JEDNO źródło
 statycznych quantów Q8_0→Q2_K, zero requantize. Box 4090/CUDA 12.6 (instancja 42274707, host 831842528a85;
-box NIE-świeży: pre-provisioned Q8 gguf + leftover lexpilot-demo, nietknięty), recipe cu124 wheel 0.3.19 +
+box NIE-świeży: pre-provisioned Q8 gguf, nietknięty), recipe cu124 wheel 0.3.19 +
 cu12 runtime libs. HEAD a023c3b clean (67 YAML), pytest 204, smoke PL koherentny na KAŻDYM quancie (nawet Q2).
 T=0/seed42, chatml; stemple commit_hash=a023c3b 12/12; oracle evaluate()==summary.num_passed 12/12; scp po
 każdym quancie. Wyniki: results/v3_11b_2026-06-18/{q8,q6,q5,q4,q3,q2}_{no_repair,repair}/ + analysis/

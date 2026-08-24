@@ -1,0 +1,24 @@
+{
+  "model_id": "bielik-minitron-7b-v3",
+  "quant": "Q4_K_M",
+  "repair": false,
+  "num_tasks": 46,
+  "num_trajectories": 46,
+  "num_passed": 1,
+  "num_inconclusive": 0,
+  "num_total": 46,
+  "success_rate": 0.0217,
+  "repair_applied_steps": 0,
+  "failure_tag_counts": {
+    "unknown_action": 81,
+    "unexpected_tool_call": 4,
+    "final_answer_missing": 42,
+    "wrong_final_answer": 18,
+    "wrong_tool_order": 8,
+    "schema_violation": 33,
+    "invalid_json": 2,
+    "timeout": 21
+  },
+  "commit_hash": "e584b38ec7045f37bfe3c42c402ca25995c8b2e7",
+  "git_ref": "e584b38"
+}
