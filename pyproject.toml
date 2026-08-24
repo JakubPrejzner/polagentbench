@@ -29,7 +29,7 @@ dependencies = [
 # toolchain. Concrete LlamaCppRunner pulls this in (see runner.py docstring).
 # Install via `uv sync --extra inference`.
 inference = [
-    "llama-cpp-python>=0.2.0",
+    "llama-cpp-python==0.3.19",
 ]
 dev = [
     "pytest>=8.0",
@@ -38,8 +38,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/polagentbench/polagentbench"
-Repository = "https://github.com/polagentbench/polagentbench"
+# UWAGA: organizacja `polagentbench` na GitHubie nie istnieje - ponizsze adresy
+# sa placeholderami, a docelowy URL release'u nie jest jeszcze znany.
+Homepage = "https://github.com/polagentbench/polagentbench"    # TODO: ustawic na URL publicznego repo release'u przed publikacja
+Repository = "https://github.com/polagentbench/polagentbench"  # TODO: ustawic na URL publicznego repo release'u przed publikacja
 
 [project.scripts]
 polagentbench = "polagentbench.cli:main"

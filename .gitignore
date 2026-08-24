@@ -43,6 +43,11 @@ coverage.xml
 # IDEs
 .idea/
 .vscode/
+# Do tej pory .claude/ byl wyciszany WYLACZNIE przez globalny plik ignore
+# uzytkownika (core.excludesFile, ~/.config/git/ignore), ktorego nie ma na
+# zadnej innej maszynie - tam `git add -A` zacommitowalby
+# .claude/settings.local.json z adresem SSH boxa GPU.
+.claude/
 *.swp
 *.swo
 

@@ -1,0 +1,859 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{caption}
+\usepackage{pgfplots}
+\usepackage{authblk}
+\usepackage[protrusion=true,expansion=false]{microtype}
+\pgfplotsset{compat=1.18}
+
+\definecolor{c7b}{HTML}{1b6ca8}
+\definecolor{c11b}{HTML}{9b2226}
+\definecolor{cpll}{HTML}{2a7d4f}
+
+\title{\textbf{Quantization Thresholds Replicate, Failure Modes Do Not:\\
+A Three-Model Study of Agentic Tool Use in Polish\\ from 8-bit to 2-bit}}
+
+\author[1]{[Author Name]\thanks{Corresponding author: [email]. Preprint draft. Bracketed items to be completed before submission.}}
+\affil[1]{[Affiliation]}
+
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+We ask what post-training GGUF quantization does specifically to \emph{agentic} tool use, meaning the ability to call the right tools in the right order and compute correct answers from their outputs, in a non-English setting, and whether the answer generalizes across models. We introduce \textbf{PolAgentBench}, a deterministic benchmark run under a realistic Polish-prompt with English-tool-schema interface: a 67-task main suite (15 single-call adversarial probes, 52 multi-step data-dependency chains) plus a 46-task arithmetic isolation ladder. We evaluate three models spanning two axes of variation. Bielik-11B-v3.0 and Bielik-Minitron-7B-v3.0 form a parent and its structurally pruned, logit-distilled child, sharing architecture, corpus, and tokenizer, so the pair isolates \emph{model compression}. Llama-PLLuM-8B, a Polish-adapted Llama-3.1 lineage, adds the \emph{pretraining family} axis at comparable scale. Each model is measured at six precisions (Q8\_0 through Q2\_K). One result replicates and three do not. \textbf{(1)} The collapse threshold is shared: all three models fall off a cliff between 3-bit and 2-bit (11B $0.716 \to 0.045$, $p<0.0001$; 7B $0.463 \to 0.149$, $p<0.0001$; PLLuM $0.224 \to 0.015$, $p=0.0001$), across a fourfold spread in absolute capability, across compression by pruning plus distillation, and across a change of pretraining family. \textbf{(2)} Failure modes do not replicate: three models, three signatures. The 7B hangs (median failing trajectory 26.8k tokens at the 8-step budget), the 11B disintegrates (1.5k tokens, one step), and PLLuM fails on \emph{content} while speaking the protocol fluently (83.9\% of its steps parse; its content-to-format failure ratio is inverted relative to Bielik). \textbf{(3)} On the arithmetic ladder, scaffolding helps rather than hurts: after correcting a newly documented answer-typing artifact, both Bieliks solve the four-call version of a computation neither can do bare (L0 at 0/10 for every Bielik run; the scaffolded rung reaches 9/10), significant under paired McNemar at 8-bit for both (7B $p=0.016$, 11B $p=0.004$), while the order-trap arm cleanly separates the models (11B 6/6, 7B 0/6). \textbf{(4)} The Polish-versus-English interface gap is a signature of degradation, not a property of the interface. Alongside the findings we document three benchmark artifacts that materially shaped our conclusions: a rounding mine in synthetic gold values that had shifted the apparent threshold by a full bit, a priority-ordered failure taxonomy whose labels are indeterminate in specific cells, and strict answer typing that penalized correct computations. All affected results are reported in strict and corrected form. We release the benchmark, all trajectories, and commit-stamped artifacts.
+\end{abstract}
+
+\section{Introduction}
+
+Small open-weight language models are almost never deployed at full precision. A model that nominally requires 14 to 22\,GB in half precision is in practice shipped as a 4-bit or 3-bit GGUF and run on commodity hardware~\cite{llamacpp,quantsurvey}. Meanwhile the dominant use of such models has shifted from answering to \emph{acting}: calling tools, reading their outputs, and chaining further calls on the result. How quantization interacts with that second mode, and whether any answer transfers across models, is poorly characterized, and nearly all existing evidence concerns English.
+
+\paragraph{Why small local models are the right subject.} A reasonable objection is that frontier hosted models now solve agentic tasks well, so the behaviour of a quantized 7B is of narrow interest. We disagree for four reasons, each describing a setting where a hosted model is not an option rather than merely a more expensive one. Confidentiality constraints in legal, medical, and public-sector work often forbid sending documents to an external API at all, so the practical question is not which model is best but whether any locally runnable model suffices. Air-gapped and intermittently connected deployments have the same property. At high volume, the per-call cost difference between a local quantized model and a hosted frontier model determines whether a product exists. And for languages outside the English-centric mainstream, locally deployable national models are a matter of technological sovereignty as much as of cost. In all four settings the operative question is exactly ours: how far can this model be compressed before it stops working as an agent, and how will it fail when it does.
+
+We study that question for Polish, under a deployment condition that is both realistic and demanding. The user request arrives in Polish while the tool schema, meaning function names, parameter names, and enum values, is English. The model must sustain a continuous semantic translation while emitting valid structured output. Polish adds morphological pressure: case declension, where the locative \emph{Łodzi} must be normalized to the nominative \emph{Łódź} before it is a valid argument, and numerals spelled out in oblique cases, where \emph{osiemdziesięciu} must be parsed to 80.
+
+Our original hypothesis (H1) was that quantization degrades agentic ability asymmetrically earlier than general quality, so that a model might look acceptable on a standard benchmark at 4-bit while already failing as an agent. The data do not support it, and testing it surfaced something more interesting. Because we ran an identical suite on three models that vary along two separable axes, compression within one family and a change of family at comparable scale, we can ask which observations are properties of \emph{quantization} and which are properties of \emph{a particular model}. That separation organizes the paper, and it cuts sharply: of four candidate findings, exactly one replicates.
+
+\begin{itemize}
+  \item \textbf{RQ1.} Where does agentic ability collapse under quantization, and is the location model-dependent?
+  \item \textbf{RQ2.} How do models fail as precision drops, and is the failure mode itself stable across models?
+  \item \textbf{RQ3.} Is arithmetic over tool outputs a capability floor, and does tool scaffolding help or hurt?
+  \item \textbf{RQ4.} Does the Polish and English interface split impose a measurable cost, and is that cost stable?
+\end{itemize}
+
+\noindent\textbf{Contributions.} We present PolAgentBench, a deterministic and commit-stamped benchmark of Polish-interface agentic tool use, comprising a 67-task main suite and a 46-task arithmetic isolation ladder with two four-call arms, one carrying an order trap and one free of it, together with a length by language design that breaks the confound between chain length and interface language. We report a three-model, six-precision measurement showing that the 3-bit to 2-bit collapse threshold is shared while failure modes, scaffolding effects, arithmetic floors, and language gaps are not. We give a mechanistic account of one model's dominant high-precision failure as a repairable protocol defect, supported by trajectory-level and token-level evidence. Finally we document three methodological hazards that materially changed our own conclusions: a rounding artifact in synthetic gold values, a priority-ordered failure taxonomy whose labels are less determinate than they appear, and a strict answer-typing rule that penalized correct computations; all affected results are reported in strict and corrected form.
+
+\section{Related Work}
+
+\paragraph{GGUF quantization and its evaluation.} The GGUF $k$-quant family (Q2\_K through Q8\_0) used here is the de facto format for local inference~\cite{llamacpp}, built on block-wise uniform quantization with superblock refinements at low bit-widths; surveys of resource-efficient inference cover the broader design space~\cite{quantsurvey}. Closest to our measurement setting is a unified evaluation of llama.cpp quantization on Llama-3.1-8B-Instruct~\cite{kquanteval}, which asks how much quality is lost between $k$-quants and whether 3-bit variants remain usable downstream. We extend that question along three axes it does not cover: a non-English interface, agentic rather than static tasks, and multiple models.
+
+\paragraph{Tool-use and agentic benchmarks.} The Berkeley Function Calling Leaderboard is the standard reference for function-calling evaluation, spanning simple, parallel, and stateful multi-turn settings~\cite{bfcl}. $\tau$-bench evaluates end-to-end completion in multi-step domains~\cite{taubench}, AgentBench spans multiple interactive environments~\cite{agentbench}, and ToolLLM scales tool-use training and evaluation to large real-world API collections~\cite{toolllm}. These are predominantly English and weight single-call correctness heavily. Methodologically our hard tier is closest to FuncBenchGen~\cite{funcbenchgen}, which formalizes multi-step function calling as traversal over a dependency graph that the model must infer rather than receive. We share the synthetic, contamination-free, controllable-difficulty design and differ in that our controlled variable is quantization and our interface is non-English. TinyLLM~\cite{tinyllm} is closest in motivation, covering small models on agentic tasks for edge deployment, but traces no quantization curve and does not address non-English interfaces.
+
+\paragraph{Polish models.} The Bielik family targets Polish across several scales and generations~\cite{bielik7b,bielik11bv2,bielikv3}; the v3 report documents the two Bielik models evaluated here~\cite{bielikv3}. PLLuM is a separate Polish national effort producing Polish-adapted models on external lineages; we evaluate its Llama-3.1-based 8B instruct release~\cite{pllum}. This work follows the present authors' earlier study of low-bit quantization of Bielik~\cite{priorwork}, which motivated the low-bit focus but measured general quality on a single model rather than agentic trajectories across models.
+
+\section{PolAgentBench}
+\label{sec:bench}
+
+\subsection{Environment}
+All tasks run in one deterministic weather environment exposing five tools: \texttt{get\_weather(city)}, \texttt{get\_forecast(city, days)}, \texttt{send\_weather\_alert(city, severity, message)}, \texttt{convert\_temperature(value, from\_unit, to\_unit)}, and \texttt{find\_nearest\_city(reference\_city, max\_distance\_km)}. The environment has no randomness, no clock, and no I/O. Every tool is a pure function of a static 52-city database (32 Polish, 20 international) plus a hand-built neighbour graph over nine Polish source cities. \texttt{get\_forecast} returns a deterministic ramp centred on the city's base temperature. Full determinism makes every task exactly reproducible and localizes failures to the model. Appendix~\ref{app:example} gives a complete worked task with its gold trajectory.
+
+\subsection{Task tiers}
+The \textbf{easy tier} (15 tasks) is a set of single-call and few-call adversarial probes targeting specific failure modes: Polish leaking into English enum values, inflection and diacritic handling, hallucinated tool results, unauthorized side effects, and over-calling. Per-task outcomes for the Bieliks are in Appendix~\ref{app:easy}.
+
+The \textbf{hard tier} (52 tasks) consists of chains of 2 to 6 steps in which each step's argument derives from a prior step's output. A recurring device is the \textbf{order trap}: \texttt{find\_nearest\_city} returns cities in graph order rather than distance order, so a chain instructing the model to use the \emph{first} returned city separates models that read tool output literally from those that substitute a plausible-sounding answer.
+
+\subsection{The arithmetic isolation ladder}
+\label{sec:ladder}
+The ladder separates inability to compute from inability to compute while orchestrating. Within an instance, all rungs share an \textbf{identical gold value}; what varies is how much tool scaffolding leads to it. L0 supplies the numbers directly in the prompt and requires no tool call, L1 requires one call, L2 two.
+
+The ladder exists in two stages. A 12-task \emph{pilot} (three instances per rung, the top rung being a four-tool chain with the order trap) is embedded in the main suite and produced the pattern that motivated everything else. Because three instances per rung admit a minimum attainable $p$ of only $0.25$, we built a 46-task \emph{extended} ladder as a separate suite: L0, L1, L2 at $n=10$, and two four-call arms. \textbf{L3T} ($n=6$) keeps the order trap and reuses the pilot's three trap routes, which we disclose; the graph's nine source cities admit no more genuinely distinct trap routes. \textbf{L3N} ($n=10$) removes the graph entirely: \texttt{get\_weather(A)}, then \texttt{get\_forecast(A,4)}, then two separate \texttt{convert\_temperature} calls on days 2 and 4, with the model averaging the two Fahrenheit values in its final answer. Because Celsius-to-Fahrenheit conversion is affine, converting then averaging equals averaging then converting, so the gold value is identical across every rung of an instance; we verified this equality on the live environment for all ten cities. The L3N specification requires both conversions as separate calls. That choice is deliberately \emph{against} our own hypothesis: it makes L3N strictly harder, so it can only weaken the scaffolding gradient we test for, never manufacture it. At $n=10$ the paired design tolerates one exception while remaining significant ($p_{\min}=0.002$).
+
+\subsection{Matched twins}
+Ten hard-tier chains in the main suite exist as matched twin pairs. Both members share prompt, tool set, and required call sequence, and differ only in whether the oracle additionally requires the correct computed number in the final answer. This isolates value correctness from orchestration correctness on identical trajectories.
+
+\subsection{Length and language, deconfounded}
+\label{sec:axes}
+Hard-tier chains vary in length (2 to 6 calls) and in interface language (\texttt{PL\_EN} for a Polish prompt with English schema, \texttt{EN\_EN} for both English). An earlier version of this suite confounded the two. Because the neighbour graph contains only Polish cities, \texttt{EN\_EN} chains could not use \texttt{find\_nearest\_city} and were therefore structurally shorter, making any language comparison partly a length comparison. We removed the confound by constructing long \texttt{EN\_EN} chains from graph-free tools and short \texttt{PL\_EN} chains, filling all four length by language cells.
+
+\subsection{Oracle, determinism, and two numeric artifacts}
+\label{sec:mines}
+Evaluation uses a deterministic \texttt{evaluate()} with per-key oracles: ordered-subsequence checks for tool sequences and substring checks for computed answers, accepting both Polish comma and English decimal-point conventions but applying no rounding tolerance.
+
+\paragraph{Artifact 1: the rounding mine.} Exact matching interacts dangerously with synthetic gold values. In an earlier revision, gold averages ended in inconvenient decimals such as $7.76$, so a model that rounded a legitimate intermediate result to one decimal place produced a wrong final string and was scored as a failure despite computing correctly. In the first full run this contaminated 14 of 96 arithmetic failure slots. We rebuilt every arithmetic gold value using a construction in which the sampled forecast offsets cancel exactly, so that averaging day 2 and day 4 of a four-day forecast returns the city's integer base temperature and each gold value is invariant to intermediate rounding. Each task was then validated three ways: the exact trajectory passes, a trajectory that rounds the intermediate also passes, and a wrong-value trajectory still fails. After correction the artifact fires exactly once across the whole grid, at the 7B's Q5\_K\_M point (Appendix~\ref{app:taxonomy}), and is zero at every other precision in all three models. The consequence was not cosmetic: in the contaminated run the collapse threshold appeared to sit at the 4-bit to 3-bit transition ($p=0.0215$, measured on the archived pre-correction run, which is excluded from the release); on corrected data that contrast is not significant on any tier and the real cliff sits one step lower. The pre-correction result would not have replicated.
+
+\paragraph{Artifact 2: answer typing, discovered after the runs.} The final-answer schema requires a string. On the extended ladder we found failures in which the model executes the entire chain correctly, computes the correct number, and then returns it as a bare float (\verb|{"answer": 46.4}|, typical of the 11B) or as an object (\verb|{"answer": {"average_temperature_fahrenheit": 46.4}}|, typical of the 7B). The schema validator rejects the payload, no final answer is registered, and the task fails with \texttt{final\_answer\_missing} and \texttt{schema\_violation} tags despite a correct computation. Unlike the rounding mine, this artifact was discovered during analysis rather than before the decisive runs, so the oracle is left unmodified and we adopt a \emph{sensitivity protocol} instead: every affected result is reported at two rates, \textbf{strict} (the oracle as run) and \textbf{corrected} (forgiving only failures whose trajectory is faultless and whose mistyped answer contains the gold value). The correction is conservative by construction: eight L1 and L2 failures carrying the same tags but substantively wrong values (for example $59$ where the gold is $46.4$) are not forgiven. A pre-registered second sensitivity split, for models that shortcut the two required conversions into one, turned out to be empty: no such trajectory exists in the data. The typing artifact, not the anticipated shortcut, was the real hazard. Section~\ref{sec:f3} reports both rates; Appendix~\ref{app:ladder} lists every corrected cell.
+
+\paragraph{Determinism and its consequence for independence.} Greedy decoding was verified semantically bit-identical across model-load cycles, so the mainline uses a single seed (42) at temperature 0 throughout; Section~\ref{sec:variance} probes what happens under sampling. One consequence deserves explicit statement. Because a twin pair shares its prompt and differs only in the oracle, at $T=0$ both members receive a bit-identical trajectory. Twin pairs are therefore two scoring views of one model behaviour, not two independent observations, and are excluded from significance tests that assume independence.
+
+Every hard-tier task was validated offline before any GPU run by constructing an ideal trajectory from real tool outputs and confirming that it passes the oracle while a give-up trajectory fails.
+
+\subsection{Failure taxonomy, and what its labels do and do not mean}
+\label{sec:taxonomy}
+
+Section~\ref{sec:f2} rests on a classification of failures into three modes. Because the classifier's design shapes the result, we state it here.
+
+The taxonomy applies to failing trajectories on the 25 arithmetic-graded main-suite tasks at \texttt{repair\,=\,off}. It is fully automatic and deterministic, with no manual adjudication. It reads only the oracle tags of the stored trajectory, the final answer text, and the task's gold values. Rules are checked in order and the first match wins:
+
+\begin{enumerate}
+  \item If the tag set contains \texttt{wrong\_final\_answer}, enter the arithmetic branch and ignore all other tags. Within it, extract every number from the answer; if any lies within $0.06$ of a gold value, label \textsc{rounding artifact}, otherwise \textsc{genuine arithmetic}.
+  \item Otherwise, if the tag set intersects \{\texttt{invalid\_json}, \texttt{no\_json\_found}, \texttt{schema\_violation}, \texttt{unknown\_action}, \texttt{final\_answer\_shape\_violation}\}, label \textsc{protocol shape}.
+  \item Otherwise, if the tag set intersects \{\texttt{final\_answer\_missing}, \texttt{wrong\_tool\_order}, \texttt{unexpected\_tool\_call}\}, label \textsc{tool fixation}.
+  \item Otherwise, \textsc{other}.
+\end{enumerate}
+
+\paragraph{The labels are less determinate than they look.} The taxonomy is single-label with a hard priority order, and many failures carry tags from more than one category, so the priority rule decides a large share of assignments. Table~\ref{tab:purity} reports how often a failure's tags fall within a single category, which we treat as a label-confidence indicator. Two consequences follow and are applied consistently in Section~\ref{sec:f2}. The 3-bit labels are the most trustworthy for the Bieliks (13 of 20 and 8 of 10 single-category). The 8-bit label for the 7B and the 2-bit labels for both Bieliks are the least trustworthy: at 7B 8-bit only 1 of 21 failures is single-category, and 18 of 21 carry protocol and fixation tags together, so the \textsc{protocol shape} count records which rule fired first rather than establishing that fixation was absent. PLLuM's labels are no better determined: only 39 of its 140 failures across the curve trigger a single rule branch, the dominant co-occurrence, a wrong final answer together with fixation tags, covers 90 of 140, and reversing the priority would relabel 72 percent of them (Appendix~\ref{app:taxonomy}); PLLuM's failure profile in Section~\ref{sec:f2} therefore rests on priority-independent tag counts, not on the single-label winner.
+
+\begin{table}[h]
+\centering\small
+\caption{Label determinacy on the 25 arithmetic-graded tasks, \texttt{repair\,=\,off}: failures whose tags all fall within one taxonomy class. Full co-occurrence counts in Appendix~\ref{app:taxonomy}.}
+\label{tab:purity}
+\begin{tabular}{lccccccc}
+\toprule
+& & Q8\_0 & Q6\_K & Q5\_K\_M & Q4\_K\_M & Q3\_K\_M & Q2\_K \\
+\midrule
+\multirow{2}{*}{7B}  & failures      & 21 & --- & --- & 21 & 20 & 25 \\
+                     & single category & \textbf{1} & --- & --- & 5 & \textbf{13} & 7 \\
+\midrule
+\multirow{2}{*}{11B} & failures      & 11 & 10 & 11 & 17 & 10 & 25 \\
+                     & single category & 3 & 3 & 4 & 2 & \textbf{8} & \textbf{3} \\
+\midrule
+\multirow{2}{*}{PLLuM} & failures    & 23 & 23 & 24 & 23 & 22 & 25 \\
+                     & single category & 6 & 9 & 6 & 4 & 9 & 5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{That co-occurrence is a signature, not noise.} The heavy overlap of protocol and fixation tags at 7B 8-bit is exactly what the defect of Section~\ref{sec:envelope} produces. When the model writes a tool name into the action field, the parser rejects the step, which raises a protocol tag, and the tool therefore never executes, so the required call never appears in order, which raises a fixation tag. One defect, two tags. The priority rule assigns it to protocol, which matches the mechanism, but the assignment is made by fiat rather than by evidence internal to the classifier. An independent ladder-specific classifier that refuses to force a winner labels most 2-bit ladder failures \textsc{mixed}, so no 2-bit claim in this paper rests on the taxonomy; 2-bit claims rest on trajectory cost, which is classifier-independent.
+
+\paragraph{Coverage and verification.} Four oracle tags belong to no category and would fall to \textsc{other}; on the 25-task subset \textsc{other} is empty for all model by precision combinations. We reimplemented the rules from this description and reproduced the published counts exactly.
+
+\section{Experimental Setup}
+\label{sec:setup}
+
+We evaluate three models at six GGUF precisions each (Q8\_0, Q6\_K, Q5\_K\_M, Q4\_K\_M, Q3\_K\_M, Q2\_K):
+
+\begin{itemize}
+  \item \textbf{Bielik-11B-v3.0-Instruct}~\cite{bielikv3}, depth-upscaled from a Mistral lineage. All six quantizations obtained pre-built from a single publisher.
+  \item \textbf{Bielik-Minitron-7B-v3.0-Instruct}~\cite{bielikv3}. This is \emph{not} an independent model: it is produced from Bielik-11B-v3-Base by structured pruning (11.04B to 7.35B parameters, NVIDIA Minitron-style) followed by logit distillation from the parent, and it shares the parent's architecture family, training corpus, and tokenizer. Q8\_0 and Q4\_K\_M were obtained directly; because no public half-precision GGUF exists, Q6\_K, Q5\_K\_M, Q3\_K\_M, and Q2\_K were requantized from Q8\_0 via \texttt{llama-quantize -{}-allow-requantize}.
+  \item \textbf{Llama-PLLuM-8B-instruct}~\cite{pllum}, a Polish-adapted model from the PLLuM national consortium built on the Llama-3.1-8B lineage, run with the \texttt{llama-3} chat template; GGUF conversions from a community publisher.
+\end{itemize}
+
+\paragraph{Two axes instead of one confound.} An earlier draft of this work treated the Bielik pair as differing in scale and architecture. The parent-child relation above corrects that: the pair differs in neither, and instead isolates the effect of \emph{model compression by pruning and distillation} with everything else held fixed. PLLuM supplies the second axis, a change of pretraining family and corpus at comparable scale, while remaining a Polish-focused model, so the family axis is not confounded with the interface language. A result that replicates across both axes, compression within a family and a change of family, is hard to attribute to anything but quantization itself. A result that differs between the Bieliks may be an effect of compression rather than of parameter count, and we phrase all such results accordingly.
+
+\paragraph{PLLuM provenance, disclosed.} The evaluation protocol included a pre-registered sanity gate: at 8-bit the model must reach 0.5 on the easy tier before the full curve is run. PLLuM scored $0.400$ ($6/15$) and the gate failed; per protocol the phase was skipped, and the curve was subsequently executed in remaining compute budget and is reported here with that provenance. Before using the data we verified that the harness was not at fault: PLLuM emits well-formed protocol steps at a rate comparable to the 11B (83.9\% of steps parse, against 89.3\%), its transcripts show no chat-template artifacts, and a ceiling analysis that forgives every failure touched by any format-related tag still caps it at $0.478$, far below the 11B's actual $0.806$. Its failures are dominated by content (74 content tags against 29 format tags at 8-bit, the inverse of Bielik's 15 against 43). PLLuM is, on this suite, a genuinely weak tool-use model rather than a mis-harnessed one. We therefore use it for within-model contrasts, above all the location of the collapse threshold, and for its failure-mode profile, and we do not use it for between-model capability comparisons.
+
+\paragraph{Infrastructure.} Inference used \texttt{llama-cpp-python} 0.3.19 (prebuilt CUDA-12 wheel) on a single NVIDIA RTX 4090 with full GPU offload, temperature 0, seed 42, a step budget set per task, ChatML formatting for the Bieliks and \texttt{llama-3} for PLLuM. Main-suite budgets range from 4 to 10 steps and are 8 on 29 of the 67 tasks (4 steps on 4 tasks, 5 on 9, 6 on 14, 10 on 11); every task of the extended ladder is given 8. The context window was 8192 tokens for all models. Every run writes a \texttt{summary.json} stamped with the repository commit hash. Independent oracle re-evaluation of stored trajectories reproduces every reported pass count exactly for the Bielik main-suite runs (24 of 24). Main-suite Bielik results carry commits \texttt{83db813} (7B) and \texttt{a023c3b} (11B); the extended ladder, the PLLuM curve, the 7B grid completion, and the sampling probe carry commit \texttt{e584b38}.
+
+\paragraph{Statistics.} Paired McNemar exact tests (two-sided) for contrasts between precisions on the same tasks and, on the ladder, between rungs of the same instances, the instance being the pairing unit because all rungs of an instance share one gold value. Task-resampling bootstrap confidence intervals with 10{,}000 resamples; paired differences use a paired bootstrap over tasks. Unless noted, analyses are for \texttt{repair\,=\,off}.
+
+\section{Finding 1: The collapse threshold replicates in all three models}
+\label{sec:f1}
+
+Table~\ref{tab:curves} gives the three quantization curves and Figure~\ref{fig:curve} plots them on a shared precision axis.
+
+\begin{table}[h]
+\centering
+\caption{All-task pass rate (67 tasks) by model and precision, \texttt{repair\,=\,off} and \texttt{on}. All three models fall off a cliff between Q3\_K\_M and Q2\_K. Tier-resolved counts in Appendix~\ref{app:split}.}
+\label{tab:curves}
+\begin{tabular}{lcccccc}
+\toprule
+& Q8\_0 & Q6\_K & Q5\_K\_M & Q4\_K\_M & Q3\_K\_M & Q2\_K \\
+\midrule
+7B    & 0.448\,/\,0.567 & 0.463\,/\,0.567 & 0.522\,/\,0.597 & 0.507\,/\,0.597 & 0.463\,/\,0.463 & 0.149\,/\,0.179 \\
+11B   & 0.806\,/\,0.806 & 0.836\,/\,0.851 & 0.746\,/\,0.761 & 0.537\,/\,0.597 & 0.716\,/\,0.716 & 0.045\,/\,0.075 \\
+PLLuM & 0.194\,/\,0.224 & 0.179\,/\,0.209 & 0.104\,/\,0.134 & 0.224\,/\,0.254 & 0.224\,/\,0.269 & 0.015\,/\,0.015 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.82\textwidth, height=6.8cm,
+  xlabel={Precision (decreasing to the right)},
+  ylabel={Pass rate (67 tasks)},
+  xtick={1,2,3,4,5,6},
+  xticklabels={Q8\_0,Q6\_K,Q5\_K\_M,Q4\_K\_M,Q3\_K\_M,Q2\_K},
+  ymin=0, ymax=1, ymajorgrids, grid style={gray!25},
+  legend pos=north east, legend cell align=left,
+  every axis plot/.append style={very thick, mark=*},
+]
+\addplot[c11b] coordinates {(1,0.806)(2,0.836)(3,0.746)(4,0.537)(5,0.716)(6,0.045)};
+\addlegendentry{Bielik-11B-v3.0}
+\addplot[c7b] coordinates {(1,0.448)(2,0.463)(3,0.522)(4,0.507)(5,0.463)(6,0.149)};
+\addlegendentry{Bielik-Minitron-7B-v3.0}
+\addplot[cpll] coordinates {(1,0.194)(2,0.179)(3,0.104)(4,0.224)(5,0.224)(6,0.015)};
+\addlegendentry{Llama-PLLuM-8B}
+\end{axis}
+\end{tikzpicture}
+\caption{Quantization curves, \texttt{repair\,=\,off}. Three very different curves, one shared terminus: every model ends in the same cliff between 3-bit and 2-bit.}
+\label{fig:curve}
+\end{figure}
+
+All three models survive substantial compression and then fail abruptly in the same place. On the hard tier the 11B drops from $36/52$ to $1/52$ ($p<0.0001$) and the 7B from $18/52$ to $2/52$ ($p<0.0001$). PLLuM drops from $0.224$ to $0.015$ on all tasks, with 14 discordant tasks against 0 ($p=0.0001$) and a paired bootstrap difference of $+0.209$, 95\% interval $[+0.119, +0.313]$. Full contrast tables are in Appendix~\ref{app:mcnemar}, bootstrap intervals in Appendix~\ref{app:bootstrap}.
+
+What makes this claim strong is what it survives. The three models span a fourfold range in absolute capability at 8-bit ($0.194$ to $0.806$). The Bielik pair differs by structured pruning and distillation; PLLuM differs by pretraining family, corpus, and tokenizer; the low-bit quantizations come from three different provenances. As the next three sections show, essentially every other behaviour we measured differs across these models. The threshold location is the one thing that does not. We therefore read it as a property of $k$-quantization at 2 to 3 bits rather than of any model, with the qualification that all three subjects are Polish-focused models in the 7B to 11B range.
+
+Three secondary observations follow. First, no curve is monotone, and no two are non-monotone in the same way. The 11B's nominal peak is Q6\_K, and its Q4\_K\_M point is a statistically significant local dip, worse than both neighbours ($p=0.0043$ against Q5, $p=0.029$ against Q3), recovering at 3-bit; we have no mechanistic account of the dip. The 7B's curve is a statistical plateau from Q8\_0 through Q3\_K\_M: its nominal maximum sits at Q5\_K\_M ($0.522$), but no pairwise contrast above the cliff is significant (Q5 against Q4, $p=1.0$ with thirteen discordant tasks, an informative null; Q6 against Q8, $p=1.0$ with a single discordant task, a comparison that could not have detected anything), so we do not claim a peak, only a flat usable band ending in the cliff. PLLuM moves inside a low band ($0.104$ to $0.224$) with a nominal dip at Q5\_K\_M that we report descriptively. Second, the ordering of the Bieliks reverses at the extreme: the 11B exceeds the 7B at every precision except Q2\_K, where it collapses further ($0.045$ against $0.149$). Within this family, capability buys headroom across the usable range and costs graceful degradation at the extreme. Third, for a model that is weak at the task to begin with, precision is visibly not the binding constraint: PLLuM's curve is nearly flat until the universal cliff removes what little there was.
+
+\section{Finding 2: Failure modes do not replicate; three models, three signatures}
+\label{sec:f2}
+
+Pass rates say where models fail; they do not say how. Table~\ref{tab:modes} gives the failure classification of Section~\ref{sec:taxonomy} for all three models, to be read together with the determinacy figures of Table~\ref{tab:purity}.
+
+\begin{table}[h]
+\centering
+\caption{Failure modes on the 25 arithmetic-graded tasks, \texttt{repair\,=\,off}: total failures, then \textsc{protocol shape}, \textsc{genuine arithmetic}, \textsc{tool fixation}. The rounding artifact is zero in every cell shown, and across the full grid it fires exactly once, at the 7B's Q5\_K\_M point, which this table does not resolve (Appendix~\ref{app:taxonomy}). Labels at 7B 8-bit, at 2-bit everywhere, and throughout the PLLuM row are priority-dominated and indicative only (Section~\ref{sec:taxonomy}).}
+\label{tab:modes}
+\begin{tabular}{lcccccc}
+\toprule
+& Q8\_0 & Q6\_K & Q5\_K\_M & Q4\_K\_M & Q3\_K\_M & Q2\_K \\
+\midrule
+7B    & 21 / 16 / 4 / 1 & --- & --- & 21 / 7 / \textbf{13} / 1 & 20 / 5 / 4 / \textbf{11} & 25 / 6 / 15 / 4 \\
+11B   & 11 / 5 / 4 / 2 & 10 / 3 / 5 / 2 & 11 / 4 / 6 / 1 & 17 / 9 / 7 / 1 & 10 / \textbf{0} / 7 / 3 & 25 / 5 / 19 / 1 \\
+PLLuM & 23 / 0 / \textbf{23} / 0 & 23 / 0 / 22 / 1 & 24 / 4 / 20 / 0 & 23 / 1 / 22 / 0 & 22 / 1 / 20 / 1 & 25 / 0 / \textbf{23} / 2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Taken at face value the 7B exhibits an orderly progression: protocol violations dominate at 8-bit, genuine miscalculation at 4-bit, fixation at 3-bit. The 3-bit fixation result is solid (13 of 20 failures single-category, corroborated by trajectory cost below); the 8-bit protocol result is priority-dependent, though Section~\ref{sec:envelope} identifies a concrete mechanism behind it. \textbf{The 11B does not reproduce the progression}: protocol and arithmetic failures interleave across its healthy precisions, its 3-bit protocol failures fall to zero in the cell where labels are most determinate, and its fixation counts never rise the way the 7B's do. \textbf{PLLuM shows a third profile}, and it is where the single-label taxonomy must be read most carefully. Under the as-run priority nearly every PLLuM failure lands in genuine arithmetic (130 of 140 across the whole curve; protocol shape 6, fixation 4), at every precision including 2-bit. That label is priority-dominated: 90 of the 140 carry a wrong final answer together with fixation tags, chiefly \texttt{wrong\_tool\_order}, so a reversed priority would call most of them fixation instead (Appendix~\ref{app:taxonomy}). What survives either reading is the tag-level picture of Section~\ref{sec:setup}: format tags are rare (29 against 74 content tags at 8-bit, the inverse of Bielik), parse fluency is near the 11B's, and the ceiling under maximal format forgiveness is $0.478$. Read either way, PLLuM fails on the task itself, wrong values and wrong call structure, while speaking the protocol, and its 2-bit collapse adds no new signature; it simply removes the few successes there were. That is the third profile: not a different way of breaking under quantization, but the same content failure at every precision, terminated by the shared cliff.
+
+\subsection{Two opposite collapses in the Bielik family, visible in trajectory cost}
+The clearest divergence is at the shared threshold, and it is measured without reference to the taxonomy. Table~\ref{tab:tokens} contrasts the token and step cost of failing against passing trajectories for the Bieliks; token counts are comparable within this pair because both models share one tokenizer, and cross-family comparisons with PLLuM would require steps rather than tokens.
+
+\begin{table}[h]
+\centering
+\caption{Median tokens and steps per trajectory, split by outcome, Bielik pair, \texttt{repair\,=\,off}. Step budgets are per task, 4 to 10, and are 8 on 29 of the 67 tasks. Full distributions in Appendix~\ref{app:tokens}.}
+\label{tab:tokens}
+\begin{tabular}{llcccc}
+\toprule
+& & \multicolumn{2}{c}{median tokens} & \multicolumn{2}{c}{median steps} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+model & precision & pass & fail & pass & fail \\
+\midrule
+\multirow{4}{*}{7B}
+ & Q8\_0   & 3504 & 12298 & 3.0 & 8.0 \\
+ & Q4\_K\_M & 3501 & 10793 & 3.0 & 6.0 \\
+ & Q3\_K\_M & 3509 & \textbf{26833} & 3.0 & \textbf{8.0} \\
+ & Q2\_K   & 3230 & 9139 & 2.0 & 4.0 \\
+\midrule
+\multirow{6}{*}{11B}
+ & Q8\_0   & 5914 & 8415 & 4.5 & 6.0 \\
+ & Q6\_K   & 6378 & 7510 & 4.5 & 5.0 \\
+ & Q5\_K\_M & 5186 & 7510 & 4.0 & 5.0 \\
+ & Q4\_K\_M & 3561 & 10849 & 3.0 & 6.0 \\
+ & Q3\_K\_M & 5228 & 6693 & 4.0 & 5.0 \\
+ & Q2\_K   & 4010 & \textbf{1506} & 3.0 & \textbf{1.0} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Across every precision in both Bieliks a failing trajectory costs more tokens than a passing one, by factors of 1.18 to 7.65, with one exception that is the point. The 7B at 3-bit fails at a median of 26{,}833 tokens over exactly the 8-step budget, against 3{,}509 tokens over 3 steps when it succeeds: it is not answering wrongly, it is refusing to stop. The 11B at 2-bit is the opposite pole: a median failing trajectory of 1{,}506 tokens and one step. It emits an out-of-schema action or an out-of-order call and terminates almost immediately. Same threshold, opposite death: the child hangs, the parent disintegrates. Because the pair shares everything except pruning and distillation, this difference is attributable to compression of the model rather than to architecture, though whether pruning or distillation carries it is not separable here. What the three-model comparison establishes is negative and useful: \textbf{a failure-mode taxonomy fitted to one model should not be assumed to transfer}, even when the aggregate curve looks similar and the collapse threshold is identical.
+
+\subsection{Envelope collapse: one defect behind the 7B's 8-bit protocol failures}
+\label{sec:envelope}
+The 7B's dominant 8-bit failure has a single identifiable cause. The agent protocol requires tool invocations of the form \verb|{"action":"call_tool","tool":X,"arguments":{...}}|. On a family of tasks the 7B produces correct calls for the first two tools and then, exactly when a third distinct tool enters the chain, drops the envelope and writes the tool name directly into the \texttt{action} field, as \verb|{"action":"convert_temperature","arguments":{...}}|. The parser rejects this as an unknown action, the tool never executes, and the ordered-sequence oracle records a wrong tool order.
+
+The pattern is deterministic and uniform: the same step in all three affected prompts, with a payload of \texttt{convert\_temperature} in 18 occurrences and \texttt{send\_weather\_alert} in 3. Its clearest expression is the set of 3-tool \texttt{EN\_EN} chains, where the 7B at 8-bit scores 0 of 6 task slots, every one an envelope collapse. Two independent lines of evidence show this is a protocol defect rather than an ability limit: the one-shot repair layer, which rewrites the malformed envelope, converts 5 of the 6 slots to passes, and the 11B solves the same slots at 3 to 5 of 6 across healthy precisions (4, 5, 3, 4, 5 from 8-bit down to 3-bit). Three of the six slots are twins of the other three and share bit-identical trajectories at $T=0$, so the effective sample is three prompts, and we run no significance test on it. An adjacent zero cell, the 4-tool \texttt{PL\_EN} chains, has a different signature (missing final answer after 8 steps, no unknown actions), so these are two distinct protocol regressions. This mechanism also explains the repair asymmetry of Section~\ref{sec:discussion}: repair is worth 8 hard-tier tasks to the 7B at 8-bit because its failures there are repairable envelope defects, and worth nothing to the 11B, which does not make that error. Appendix~\ref{app:envelope} gives raw output.
+
+\section{Finding 3: Scaffolding helps both Bieliks; the order trap, not tool count, separates them}
+\label{sec:f3}
+
+The extended ladder of Section~\ref{sec:ladder} was run on both Bieliks at four precisions (Q8\_0, Q4\_K\_M, Q3\_K\_M, Q2\_K), at both repair settings; PLLuM sits at the floor of the entire ladder ($\le 2/46$ at every precision) and is excluded from ladder inference; for completeness, its only two ladder passes are both at L0 (instances c and f at 8-bit), which nominally reverses the gradient direction at $n_{10}=2$, $p=0.5$, far from any inference. Table~\ref{tab:ladder} reports per-rung pass rates at the strict rate, with corrected values where the typing artifact of Section~\ref{sec:mines} changes a cell.
+
+\begin{table}[h]
+\centering
+\caption{Extended ladder, pass rate per rung, \texttt{repair\,=\,off}. L0, L1, L2, L3N have $n=10$; L3T has $n=6$. Corrected values (typing artifact forgiven) in parentheses where they differ; no other cell changes. L0 is 0.00 in all eight Bielik runs at both rates.}
+\label{tab:ladder}
+\begin{tabular}{llcccccc}
+\toprule
+& & L0 (0) & L1 (1) & L2 (2) & L3T (4, trap) & L3N (4, no graph) & total /46 \\
+\midrule
+\multirow{4}{*}{11B}
+ & Q8\_0   & 0.00 & 0.10 & 0.40 & \textbf{1.00} & 0.20 (\textbf{0.90}) & 13 (20) \\
+ & Q4\_K\_M & 0.00 & 0.00 & 0.10 & 0.00 & 0.00 (0.40) & 1 (5) \\
+ & Q3\_K\_M & 0.00 & \textbf{1.00} & \textbf{1.00} & 0.83 & 0.70 & 32 \\
+ & Q2\_K   & 0.00 & 0.00 & 0.00 & 0.00 & 0.00 & 0 \\
+\midrule
+\multirow{4}{*}{7B}
+ & Q8\_0   & 0.00 & 0.00 & 0.20 & 0.00 & 0.00 (\textbf{0.70}) & 2 (9) \\
+ & Q4\_K\_M & 0.00 & 0.00 & 0.00 & 0.00 & 0.10 (0.30) & 1 (3) \\
+ & Q3\_K\_M & 0.00 & 0.10 & 0.10 & 0.00 & 0.00 & 2 \\
+ & Q2\_K   & 0.00 & 0.00 & 0.00 & 0.00 & 0.00 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\caption{Paired McNemar on the ladder, selected contrasts, instance as pairing unit, \texttt{repair\,=\,off}. $n_{01}$ counts instances failed at L0 and passed at the scaffolded rung; $n_{10}$ is zero in every Bielik comparison (statistical notes in Appendix~\ref{app:ladder}). Asterisks mark $p<0.05$.}
+\label{tab:laddermcnemar}
+\begin{tabular}{llllcc}
+\toprule
+model & precision & contrast & rate & $n_{01}$ & $p$ \\
+\midrule
+11B & Q8\_0 & L0 vs L3T ($n=6$)  & strict    & 6 & \textbf{0.031}* \\
+11B & Q8\_0 & L0 vs L3N ($n=10$) & strict    & 2 & 0.500 \\
+11B & Q8\_0 & L0 vs L3N ($n=10$) & corrected & 9 & \textbf{0.004}* \\
+11B & Q8\_0 & L0 vs L2 ($n=10$)  & strict    & 4 & 0.125 \\
+11B & Q4\_K\_M & L0 vs L3N ($n=10$) & corrected & 4 & 0.125 \\
+11B & Q3\_K\_M & L0 vs L2 ($n=10$)  & strict & 10 & \textbf{0.002}* \\
+11B & Q3\_K\_M & L0 vs L3N ($n=10$) & strict & 7 & \textbf{0.016}* \\
+11B & Q3\_K\_M & L0 vs L3T ($n=6$)  & strict & 5 & 0.063 \\
+7B  & Q8\_0 & L0 vs L3N ($n=10$) & strict    & 0 & 1.000 \\
+7B  & Q8\_0 & L0 vs L3N ($n=10$) & corrected & 7 & \textbf{0.016}* \\
+7B  & Q4\_K\_M & L0 vs L3N ($n=10$) & corrected & 3 & 0.250 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Four things are true at once, and stating them separately is the point of the dual-arm design.
+
+\paragraph{Bare arithmetic is a floor for every model tested.} L0, where the numbers sit in the prompt and no tool call is permitted, is 0 of 10 in all eight Bielik runs, at both rates: the typing correction rescues nothing here, because the L0 failures are not mistyped correct answers. They are two different failures wearing the same zero. The 11B disobeys the format: at Q8\_0 and Q3\_K\_M it calls tools although the task forbids any (\texttt{unexpected\_tool\_call} in 10 of 10 failures). The 7B obeys, making no calls, and then breaks the envelope on the answer itself (\texttt{unknown\_action} in 10 of 10, missing final answer in 9). One rung, one score, two mechanisms.
+
+\paragraph{Scaffolding helps both models, and the strict rate hides half of that.} At the corrected rate, routing the identical computation through four explicit calls lifts the 11B from 0/10 to 9/10 ($p=0.004$) and the 7B from 0/10 to 7/10 ($p=0.016$) at 8-bit. At the strict rate only the 11B's gradient is significant (via L3T at 8-bit, $p=0.031$, and via L2 and L3N at 3-bit), while the 7B shows nothing ($p=0.5$ at best). The difference between the two rates \emph{is} the typing artifact: the 7B computes the right number through the full chain and then returns it as an object instead of a string. Under the sensitivity protocol of Section~\ref{sec:mines} we state the finding conditionally: the scaffolding gradient is significant for the 11B under either scoring, and for the 7B only once mistyped correct answers are forgiven. We consider the corrected reading the honest one, since the forgiven trajectories are verifiably correct computations, and the control group of substantively wrong answers with identical tags is not forgiven; readers who disagree have the strict numbers. One guard on scope: the defensible claim is that L0 is the floor and the four-call rungs clear it, not that each added tool helps monotonically, since L3N sits below L2 in several strict cells; the gradient is a contrast between no scaffolding and full scaffolding, not a staircase.
+
+\paragraph{What separates the models is the trap, not the tool count.} The two four-call arms differ only in whether the chain runs through \texttt{find\_nearest\_city} and its order trap. On the trap-free arm both models succeed at 8-bit once typing is corrected (0.90 against 0.70). On the trap arm they split absolutely: 6 of 6 for the 11B, 0 of 6 for the 7B, at every rate. The pilot ladder's original reading, that the 7B has a flat scaffolding-independent floor, was therefore a compound of two effects the pilot could not distinguish: a genuine inability to survive the order trap, and a scoring artifact on the trap-free computation. The extended design separates them. Within the Bielik family, surviving the order trap is a capability the parent has and the pruned-and-distilled child lacks, at every precision tested.
+
+\paragraph{The 3-bit 11B beats the 8-bit 11B on light scaffolding.} At Q3\_K\_M the 11B solves L1 and L2 perfectly (10/10 and 10/10) where the 8-bit model manages 1/10 and 4/10, and its 8-bit failures there are substantively wrong values, including the same wrong number returned for five different L1 instances, a degenerate answer the 3-bit model never produces. On the trap-free four-call arm the ordering reverses (corrected 0.90 for Q8 against 0.70 for Q3), and on the main suite Q8 remains ahead overall, so this is not a claim that 3-bit is the better model; it is a demonstration that quantization can reorder capabilities non-uniformly across task structure, which no single aggregate number reveals. A single greedy decode underlies every cell here, and Section~\ref{sec:variance} shows that run-level outcomes at Q3\_K\_M vary widely under sampling, so we treat this inversion as a property of the deterministic configuration measured, not as a stable ranking.
+
+\subsection{Matched twins: the value penalty, and its robustness to the typing artifact}
+The ten matched twin pairs of the main suite give an independent view of value correctness (Table~\ref{tab:twins}). The 7B never exceeds $0.20$ on the value-checked twins at any precision; the 11B reaches $0.80$ to $0.90$ at healthy precisions. Requiring the value costs between $0$ and $0.20$ and, with one exception at the 11B's anomalous 4-bit point, never helps. No individual per-precision difference reaches significance at $n=10$; the consistency of sign carries the claim. One robustness note connects this to Section~\ref{sec:mines}: the typing artifact cannot manufacture the structure-pass-value-fail discordance pattern, because a mistyped answer registers no final answer and fails \emph{both} twins. The twin contrast is therefore immune to the artifact, though absolute twin levels share its exposure, and we did not re-audit the main suite for it; that caveat is listed in Section~\ref{sec:limits}.
+
+\begin{table}[h]
+\centering
+\caption{Matched twin pairs ($n=10$), \texttt{repair\,=\,off}: structure-only pass rate against structure-plus-value.}
+\label{tab:twins}
+\begin{tabular}{llccc}
+\toprule
+model & precision & structure & with value & difference \\
+\midrule
+\multirow{4}{*}{7B}
+ & Q8\_0   & 0.200 & 0.200 & $0.00$ \\
+ & Q4\_K\_M & 0.400 & 0.200 & $-0.20$ \\
+ & Q3\_K\_M & 0.400 & 0.200 & $-0.20$ \\
+ & Q2\_K   & 0.100 & 0.000 & $-0.10$ \\
+\midrule
+\multirow{6}{*}{11B}
+ & Q8\_0   & 1.000 & \textbf{0.800} & $-0.20$ \\
+ & Q6\_K   & 1.000 & \textbf{0.900} & $-0.10$ \\
+ & Q5\_K\_M & 0.900 & \textbf{0.800} & $-0.10$ \\
+ & Q4\_K\_M & 0.500 & 0.600 & $+0.10$ \\
+ & Q3\_K\_M & 0.900 & \textbf{0.700} & $-0.20$ \\
+ & Q2\_K   & 0.000 & 0.000 & $0.00$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Finding 4: The language gap is a degradation signature}
+\label{sec:f4}
+
+Table~\ref{tab:lang} gives both Bieliks across all four length by language cells of the deconfounded design.
+
+\begin{table}[h]
+\centering
+\caption{Pass rate by chain length and interface language ($n=40$ chains), \texttt{repair\,=\,off}. For the 11B, Polish matches or beats English in the long-chain bucket at every healthy precision except the 4-bit dip ($0.31$ against $0.44$); on short chains the single inversion is at Q3\_K\_M ($0.78$ against $0.89$). For the 7B, the long \texttt{PL\_EN} cell is a floor at every precision.}
+\label{tab:lang}
+\begin{tabular}{llcccccc}
+\toprule
+model & bucket ($n$) & Q8\_0 & Q6\_K & Q5\_K\_M & Q4\_K\_M & Q3\_K\_M & Q2\_K \\
+\midrule
+\multirow{4}{*}{7B}
+ & short, PL (9)  & 0.78 & 0.89 & 0.89 & 1.00 & 1.00 & 0.11 \\
+ & short, EN (9)  & 0.33 & 0.33 & 0.33 & 0.56 & 0.44 & 0.11 \\
+ & long, PL (13)  & \textbf{0.08} & \textbf{0.08} & \textbf{0.31} & \textbf{0.15} & \textbf{0.15} & \textbf{0.00} \\
+ & long, EN (9)   & 0.56 & 0.56 & 0.78 & 0.33 & 0.22 & 0.00 \\
+\midrule
+\multirow{4}{*}{11B}
+ & short, PL (9)  & 1.00 & 1.00 & 1.00 & 0.89 & 0.78 & 0.00 \\
+ & short, EN (9)  & 0.78 & 0.89 & 0.67 & 0.78 & 0.89 & 0.00 \\
+ & long, PL (13)  & 1.00 & 0.92 & 0.92 & \textbf{0.31} & 0.77 & 0.08 \\
+ & long, EN (9)   & 0.78 & 0.89 & 0.67 & \textbf{0.44} & 0.56 & 0.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+On the 7B one sees an interface gap that reverses with chain length, with Polish ahead on short chains ($0.78$ against $0.33$ at 8-bit) and English ahead on long ones ($0.08$ against $0.56$). On the 11B the same measurement does not reproduce: Polish matches or exceeds English in the long-chain bucket at 8-bit, 6-bit, 5-bit, and 3-bit, and the English advantage appears in exactly one column, Q4\_K\_M, the dip of Section~\ref{sec:f1}. The per-length breakdown in Appendix~\ref{app:lang} shows the 7B pattern is not really about language: its long \texttt{PL\_EN} cell is pinned between $0.00$ and $0.31$ across precisions, and that cell \emph{contains} the family of 4-tool order-trap chains, 11 of its 13 tasks, the remaining two (\texttt{v3\_chain\_008} and \texttt{v3\_chain\_009}) being five-call chains that route through the same trap. The cell is therefore dominated by, not identical to, the discriminator isolated by the ladder's trap arm in Section~\ref{sec:f3}. The economical reading is that the interface gap is not a stable property of running Polish prompts against English schemas. In the parent model it surfaces only when the model is already failing; in the compressed child it is a proxy for one unsolved structural family. A benchmark sampling only a degraded configuration, or only one model, would report a language effect that neither healthy configuration has.
+
+\section{Under sampling, format discipline is the fragile layer}
+\label{sec:variance}
+
+The mainline of this paper runs at temperature 0 with verified deterministic decoding. To probe what sampling adds, we reran the 11B main suite at temperature $0.7$ with three seeds at two precisions. The outcome is bimodal (Table~\ref{tab:variance}): two seeds land near the deterministic result and one collapses, at both precisions.
+
+\begin{table}[h]
+\centering\small
+\caption{11B main suite at $T=0.7$, \texttt{repair\,=\,off}, passes of 67. The deterministic ($T=0$) reference is 54 (Q8\_0) and 48 (Q3\_K\_M).}
+\label{tab:variance}
+\begin{tabular}{lccc}
+\toprule
+precision & seed 1 & seed 2 & seed 3 \\
+\midrule
+Q8\_0    & \textbf{8}  & 49 & 48 \\
+Q3\_K\_M & \textbf{13} & 43 & 51 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Trajectory inspection shows the collapsed runs are not a capability failure. The runs start normally and the deficit is concentrated in envelope discipline: malformed action wrappers cascade through subsequent steps. Forgiving format-cascade failures alone places seed 1 at $0.776$ (Q8\_0) and $0.881$ (Q3\_K\_M). Applied like for like, meaning the same forgiveness extended to the other seeds, that recovers most of the gap but not all of it, and only at one precision: at Q3\_K\_M seed 1 lands inside the band of seeds 2 and 3 ($0.821$ and $0.925$), while at Q8\_0 it stays below both ($0.910$ and $0.955$). A competing hypothesis, that a stuck sampler loops, is contradicted by the data: the seed with the most repeated content is seed 3, which scores 48 of 67. With two configurations and three seeds this is an observation, not a finding, and we report it for two reasons. It justifies the choice of $T=0$ for measurement, since a pass rate at temperature is evidently not a stable single number for this model. And it localizes the fragility: what sampling breaks first is not reasoning but the thin layer of format discipline on which the whole agentic protocol rests, the same layer implicated in the 7B's envelope collapse and in the typing artifact. One harness detail is worth recording for reproducers: the sampling seed is supplied per step to the completion call rather than once to the model constructor, so each step's sampling stream restarts; this is uniform across seeds and does not by itself explain why one seed collapses.
+
+\section{Discussion}
+\label{sec:discussion}
+
+The findings resolve into one sentence: the location of the cliff is a property of quantization, and almost everything else is a property of the model. That is more useful than either half alone. It licenses one genuinely general deployment rule, namely never to run these models below 3 bits for agentic work, while warning against generalizing the accompanying phenomenology, the failure taxonomy, the role of scaffolding, the language gap, from any single model.
+
+For practitioners the guidance is model-specific beyond the shared rule. For the 11B, 6-bit to 8-bit is the safe band, Q4\_K\_M specifically should be avoided (a significant dip against both neighbours), and 3-bit is surprisingly strong on this suite ($0.716$, and dominant on lightly scaffolded arithmetic) while sitting one step from the cliff. For the 7B, the curve is flat within noise from 8-bit to 3-bit, so choosing a precision matters less than enabling a repair layer, which is worth $+0.12$ at 8-bit because the model's dominant defect is mechanically reparable. For a model that is weak at tool use to begin with, PLLuM here, precision is not the binding constraint and quantization choices are second-order; capability is first-order, until 2-bit removes even that. On arithmetic over tool outputs, the advice inverts the intuition that motivated our ladder: do not test or deploy the computation in isolation; embed it in explicit tool calls, including an explicit conversion step, and enforce output typing in the harness, since both Bieliks compute correctly under scaffolding and one of them then loses the result to a type error.
+
+Our original hypothesis H1, that quantization erodes agentic ability before general quality, is not supported in any of the three models; no curve shows monotone early erosion, and two of the three are non-monotone in different ways.
+
+\paragraph{The repair flag is not noise, and its asymmetry is informative.} A one-shot recovery attempt on a malformed step is worth substantially more to the 7B than to the others: on its hard tier it converts 16 passes to 24 at 8-bit and 19 to 25 at 4-bit, lifting the full-suite 8-bit rate from $0.448$ to $0.567$, while for the 11B the same flag changes nothing at 8-bit or 3-bit. Section~\ref{sec:envelope} supplies the reason. For PLLuM repair adds at most $0.045$ anywhere, consistent with failures that are not format-mechanical. Repair, in other words, is a diagnostic: how much it helps tells you what kind of failures a model makes.
+
+\section{Limitations}
+\label{sec:limits}
+\begin{itemize}
+  \item \textbf{The Bielik pair isolates compression, not scale.} The 7B is a pruned and distilled child of the 11B. Differences between them are attributable to that compression, but pruning and distillation are not separable from each other here, and neither is separable from parameter count by this pair alone.
+  \item \textbf{The family axis is carried by a weak model.} PLLuM anchors the architecture-and-pretraining axis, but its absolute tool-use level is low, it failed a pre-registered sanity gate (easy tier $0.400$ at 8-bit against a $0.5$ threshold), and its curve was executed as a post-gate extension, which we disclose. Its contribution is therefore limited to within-model contrasts (the cliff) and its failure profile; we cannot rule out that our Polish agentic prompt style disadvantages its instruction tuning, though harness fault was excluded (Section~\ref{sec:setup}).
+  \item \textbf{The comparison is not like for like in quantization provenance.} The 11B's six quantizations are pre-built from one publisher; the 7B's Q6, Q5, Q3, and Q2 are requantized from Q8\_0; PLLuM's come from a third source.
+  \item \textbf{The typing artifact is documented, not repaired.} The oracle that produced the decisive runs is left unmodified and affected results are reported at strict and corrected rates. The main-suite twins were not re-audited for the artifact; their discordance pattern is provably immune to it, but their absolute levels are not.
+  \item \textbf{Failure labels are priority-dominated in specific cells} (Section~\ref{sec:taxonomy}); no 2-bit claim rests on them.
+  \item \textbf{Sample sizes.} 67 main tasks; ladder rungs of 10 and 6; twin contrasts at $n=10$ never individually significant; the sampling probe is two configurations by three seeds.
+  \item \textbf{Twin pairs are not independent at $T=0$} and are excluded from significance tests.
+  \item \textbf{Synthetic deterministic environment}; no tool latency or failure variability.
+  \item \textbf{Two open anomalies.} The 11B's significant Q4\_K\_M dip and the single-seed sampling collapse are reported without mechanisms.
+  \item \textbf{The envelope-collapse trigger is not isolated}: third-tool position and the specific tool \texttt{convert\_temperature} cannot be separated on this task set.
+\end{itemize}
+
+\section{Conclusion}
+We measured agentic tool use under GGUF quantization for three Polish-focused models spanning two axes of variation, compression within a family and a change of pretraining family, at six precisions each, on a deterministic benchmark with a Polish prompt and English schema interface. The collapse threshold between 3-bit and 2-bit replicates in all three models, across a fourfold spread in capability, and is on this evidence a property of quantization. Nothing else replicates. The compressed child hangs at collapse while its parent disintegrates in a single step and the foreign-family model fails on content while speaking the protocol fluently. Scaffolding helps both Bieliks once a scoring artifact is removed, and what actually separates them is the order trap, not the tool count. The interface gap appears only in degraded configurations or as a proxy for one unsolved task family. Under sampling, the first thing to break is format discipline, not reasoning. Along the way this benchmark penalized correct behaviour three separate times, through rounding-hostile gold values, priority-driven failure labels, and strict answer typing, and we report every affected result in both strict and corrected form as a template for how synthetic agentic benchmarks can disclose their own instruments. The natural next steps are a native, non-distilled model at 7B scale from the Bielik lineage, which would separate pruning-and-distillation from capability, and a stronger foreign-family tool-use model, which would carry the family axis at a competitive absolute level.
+
+\section*{Reproducibility}
+Models: Bielik-11B-v3.0-Instruct (six pre-built quantizations, one publisher), Bielik-Minitron-7B-v3.0-Instruct (Q8\_0 and Q4\_K\_M direct; Q6\_K, Q5\_K\_M, Q3\_K\_M, Q2\_K requantized from Q8\_0 via \texttt{llama-quantize -{}-allow-requantize}), Llama-PLLuM-8B-instruct (community GGUF, \texttt{llama-3} chat template). Inference: \texttt{llama-cpp-python} 0.3.19, prebuilt CUDA-12 wheel, single RTX 4090, full offload, $T=0$, seed 42, per-task step budget (main suite 4 to 10, 8 on 29 of 67 tasks; 8 on every ladder task); ChatML for the Bieliks. Determinism verified as semantic bit-identity of greedy decoding across model-load cycles. Every \texttt{summary.json} carries its source commit hash: \texttt{83db813} (7B main), \texttt{a023c3b} (11B main), \texttt{e584b38} (extended ladder, PLLuM curve, 7B grid completion, sampling probe). Independent oracle re-evaluation reproduces all Bielik main-suite counts (24 of 24 runs). Suites: 67 main tasks and 46 ladder tasks, all validated offline by ideal-trajectory and give-up-trajectory checks before any GPU run; 204 unit tests green at the stamped commits. Statistics: paired McNemar exact (two-sided), instance-paired on the ladder; percentile bootstrap, 10{,}000 resamples, paired over tasks for differences. Released artifacts include task definitions, all trajectories, per-task outcome matrices, the failure classifier, and analysis scripts.
+
+\appendix
+
+\section{Easy-tier per-task outcomes, Bielik pair}
+\label{app:easy}
+
+\begin{table}[h]
+\centering\small
+\caption{Easy tier, \texttt{repair\,=\,off}. P denotes pass, F fail. PLLuM easy-tier totals appear in Appendix~\ref{app:split}.}
+\label{tab:easytasks}
+\begin{tabular}{llcccc|cccccc}
+\toprule
+& & \multicolumn{4}{c|}{7B} & \multicolumn{6}{c}{11B} \\
+task & probe & Q8 & Q4 & Q3 & Q2 & Q8 & Q6 & Q5 & Q4 & Q3 & Q2 \\
+\midrule
+adv\_001  & language leakage        & P & P & P & F & P & P & P & P & P & F \\
+adv\_002  & language leakage        & P & P & P & P & P & P & P & P & P & F \\
+adv\_003  & inflection mismatch     & P & P & P & P & P & P & P & P & P & F \\
+adv\_004a & diacritic corruption    & P & P & P & P & P & P & P & P & P & F \\
+adv\_004b & final-answer shape      & F & P & P & F & P & P & F & P & F & P \\
+adv\_005  & hallucinated result     & P & P & P & P & F & P & F & F & P & F \\
+adv\_006  & unauthorized side effect& P & P & P & F & P & P & P & P & P & F \\
+adv\_007  & recovery, not found     & P & P & P & P & P & P & P & P & P & P \\
+adv\_008  & loop to step budget     & P & P & P & P & P & P & P & P & P & F \\
+adv\_009a & arithmetic, two readings& P & P & F & F & P & P & P & P & F & F \\
+adv\_009b & wrong discriminator     & P & P & P & F & P & P & P & P & P & F \\
+adv\_010  & no tools, final answer  & P & P & F & F & P & P & P & F & P & F \\
+adv\_011  & numeral parsing in args & P & P & P & P & P & P & P & P & P & F \\
+adv\_012  & conditional negation    & P & P & P & P & P & P & P & P & P & F \\
+adv\_013  & ordered 3-tool chain    & P & P & P & F & P & P & P & P & F & F \\
+\midrule
+\multicolumn{2}{l}{total of 15} & 14 & 15 & 13 & 8 & 14 & 15 & 13 & 13 & 12 & 2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Note: the 7B's Q6\_K and Q5\_K\_M easy-tier totals are 14 and 13 respectively; per-task rows for those precisions are in the released matrix.
+
+\section{Tier-resolved counts and the repair flag}
+\label{app:split}
+
+\begin{table}[h]
+\centering\small
+\caption{7B tier-resolved pass counts. Repair acts on the hard tier from 8-bit down to 4-bit ($+8$, $+7$, $+5$, $+6$ tasks), does nothing on either tier at 3-bit, and at 2-bit acts on the easy tier only ($+2$).}
+\label{tab:split7b}
+\begin{tabular}{lccccccc}
+\toprule
+precision & repair & easy /15 & hard /52 & all /67 & easy rate & hard rate & all rate \\
+\midrule
+Q8\_0   & off & 14 & 16 & 30 & 0.933 & 0.308 & 0.448 \\
+Q8\_0   & on  & 14 & 24 & 38 & 0.933 & 0.462 & 0.567 \\
+Q6\_K   & off & 14 & 17 & 31 & 0.933 & 0.327 & 0.463 \\
+Q6\_K   & on  & 14 & 24 & 38 & 0.933 & 0.462 & 0.567 \\
+Q5\_K\_M & off & 13 & 22 & 35 & 0.867 & 0.423 & 0.522 \\
+Q5\_K\_M & on  & 13 & 27 & 40 & 0.867 & 0.519 & 0.597 \\
+Q4\_K\_M & off & 15 & 19 & 34 & 1.000 & 0.365 & 0.507 \\
+Q4\_K\_M & on  & 15 & 25 & 40 & 1.000 & 0.481 & 0.597 \\
+Q3\_K\_M & off & 13 & 18 & 31 & 0.867 & 0.346 & 0.463 \\
+Q3\_K\_M & on  & 13 & 18 & 31 & 0.867 & 0.346 & 0.463 \\
+Q2\_K   & off & 8  & 2  & 10 & 0.533 & 0.038 & 0.149 \\
+Q2\_K   & on  & 10 & 2  & 12 & 0.667 & 0.038 & 0.179 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\caption{11B and PLLuM tier-resolved pass counts. Each cell reads \texttt{repair\,=\,off}\,/\,\texttt{on}, the same convention as Table~\ref{tab:curves}, whose second number each \emph{all /67} row reproduces. Every task repair adds to the 11B lands on the hard tier, at most 4 of them (at 4-bit) and none at all at 8-bit or 3-bit; for PLLuM the opposite holds, 9 of its 11 added tasks being easy-tier.}
+\label{tab:split11b}
+\begin{tabular}{lcccccc}
+\toprule
+& Q8\_0 & Q6\_K & Q5\_K\_M & Q4\_K\_M & Q3\_K\_M & Q2\_K \\
+\midrule
+11B easy /15 & 14\,/\,14 & 15\,/\,15 & 13\,/\,13 & 13\,/\,13 & 12\,/\,12 & 2\,/\,2 \\
+11B hard /52 & 40\,/\,40 & 41\,/\,42 & 37\,/\,38 & 23\,/\,27 & 36\,/\,36 & 1\,/\,3 \\
+11B all /67  & 54\,/\,54 & 56\,/\,57 & 50\,/\,51 & 36\,/\,40 & 48\,/\,48 & 3\,/\,5 \\
+\midrule
+PLLuM easy /15 & 6\,/\,7 & 5\,/\,7 & 4\,/\,6 & 8\,/\,10 & 9\,/\,11 & 1\,/\,1 \\
+PLLuM hard /52 & 7\,/\,8 & 7\,/\,7 & 3\,/\,3 & 7\,/\,7 & 6\,/\,7 & 0\,/\,0 \\
+PLLuM all /67  & 13\,/\,15 & 12\,/\,14 & 7\,/\,9 & 15\,/\,17 & 15\,/\,18 & 1\,/\,1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Failure taxonomy audit}
+\label{app:taxonomy}
+
+\begin{table}[h]
+\centering\small
+\caption{Tag co-occurrence among failures on the 25 arithmetic-graded tasks, Bielik pair, \texttt{repair\,=\,off}. Every co-occurring case is resolved by rule order rather than by evidence. The three pair columns count \emph{inclusively}: a failure carrying tags from all three classes is counted in all three columns, so the columns overlap and need not sum to the failure total. The same inclusive rule produces the PLLuM counts quoted in Section~\ref{sec:taxonomy}, Section~\ref{sec:f2}, and the paragraph below; counting exclusively, meaning a class set of exactly two, would lower PLLuM's arithmetic-plus-fixation figure from 90 to 76.}
+\label{tab:cooc}
+\begin{tabular}{llccccc}
+\toprule
+model & precision & failures & arith+protocol & arith+fixation & protocol+fixation & single category \\
+\midrule
+\multirow{4}{*}{7B}
+ & Q8\_0   & 21 & 3 & 3  & 18 & 1 \\
+ & Q4\_K\_M & 21 & 9 & 6  & 13 & 5 \\
+ & Q3\_K\_M & 20 & 0 & 2  & 5  & 13 \\
+ & Q2\_K   & 25 & 8 & 10 & 12 & 7 \\
+\midrule
+\multirow{6}{*}{11B}
+ & Q8\_0   & 11 & 2 & 3  & 7  & 3 \\
+ & Q6\_K   & 10 & 1 & 4  & 4  & 3 \\
+ & Q5\_K\_M & 11 & 1 & 3  & 5  & 4 \\
+ & Q4\_K\_M & 17 & 2 & 6  & 11 & 2 \\
+ & Q3\_K\_M & 10 & 0 & 2  & 0  & 8 \\
+ & Q2\_K   & 25 & 4 & 18 & 8  & 3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+PLLuM is the least determinate of the three once co-occurrence is counted: 39 of its 140 failures across the curve trigger a single rule branch (per precision 6/23, 9/23, 6/24, 4/23, 9/22, 5/25). The dominant combination, a wrong final answer together with fixation tags, covers 90 of 140 (\texttt{wrong\_tool\_order} 85, \texttt{unexpected\_tool\_call} 5), of which 14 also carry a protocol tag; the as-run priority labels all of these genuine arithmetic, and reversing the priority would relabel 101 of 140. Shape-only tag sets never occur. Three further audit results: two tags nominally in the fixation set are never emitted by the oracle in any clean run, so fixation rests in practice on three tags; the rounding-artifact window was checked against every failure in all runs and matched exactly one, the 7B at Q5\_K\_M on \texttt{v3\_arith\_L3\_a}, whose answer of $46.375$ falls inside the $0.06$ window around the gold $46.4$ (the same trajectory recurs at \texttt{repair\,=\,on}), so the zero reported for every other cell is a measured result and not an untested assumption; and the oracle scores the first parsed final answer while the classifier reads the last, a latent inconsistency that never binds because no failing trajectory emits more than one final answer.
+
+\section{Paired McNemar contrasts, main suite}
+\label{app:mcnemar}
+
+\begin{table}[h]
+\centering\small
+\caption{7B, \texttt{repair\,=\,off}. The plateau Q8\_0 through Q3\_K\_M shows no significant contrast; every contrast against Q2\_K is significant. New night-run contrasts for Q6\_K and Q5\_K\_M included.}
+\label{tab:mcnemar7b}
+\begin{tabular}{llccccc}
+\toprule
+pair & tier & $n_{11}$ & $n_{10}$ & $n_{01}$ & $n_{00}$ & $p$ \\
+\midrule
+Q8 vs Q4 & all  & 26 & 4 & 8 & 29 & 0.388 \\
+Q8 vs Q3 & all  & 23 & 7 & 8 & 29 & 1.000 \\
+Q8 vs Q6 & all  & 30 & 0 & 1 & 36 & 1.000 \\
+Q5 vs Q4 & all  & 28 & 7 & 6 & 26 & 1.000 \\
+Q4 vs Q3 & all  & 27 & 7 & 4 & 29 & 0.549 \\
+Q8 vs Q2 & hard & 1  & 15& 1 & 35& \textbf{0.0005} \\
+Q8 vs Q2 & all  & 9  & 21& 1 & 36& \textbf{$<$0.0001} \\
+Q4 vs Q2 & all  & 10 & 24& 0 & 33& \textbf{$<$0.0001} \\
+Q3 vs Q2 & hard & 2  & 16& 0 & 34& \textbf{$<$0.0001} \\
+Q3 vs Q2 & all  & 10 & 21& 0 & 36& \textbf{$<$0.0001} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\caption{11B, \texttt{repair\,=\,off}. Q4\_K\_M is significant against both neighbours; every contrast against Q2\_K is significant.}
+\label{tab:mcnemar11b}
+\begin{tabular}{llccccc}
+\toprule
+pair & tier & $n_{11}$ & $n_{10}$ & $n_{01}$ & $n_{00}$ & $p$ \\
+\midrule
+Q8 vs Q6 & all  & 52 & 2 & 4 & 9 & 0.688 \\
+Q8 vs Q5 & all  & 49 & 5 & 1 & 12& 0.219 \\
+Q8 vs Q4 & all  & 35 & 19& 1 & 12& \textbf{$<$0.0001} \\
+Q8 vs Q3 & all  & 42 & 12& 6 & 7 & 0.238 \\
+Q8 vs Q2 & all  & 3  & 51& 0 & 13& \textbf{$<$0.0001} \\
+Q6 vs Q5 & all  & 49 & 7 & 1 & 10& 0.070 \\
+Q6 vs Q4 & all  & 36 & 20& 0 & 11& \textbf{$<$0.0001} \\
+Q6 vs Q2 & all  & 2  & 54& 1 & 10& \textbf{$<$0.0001} \\
+Q5 vs Q4 & all  & 32 & 18& 4 & 13& \textbf{0.0043} \\
+Q5 vs Q3 & all  & 40 & 10& 8 & 9 & 0.815 \\
+Q5 vs Q2 & all  & 2  & 48& 1 & 16& \textbf{$<$0.0001} \\
+Q4 vs Q3 & all  & 29 & 7 & 19& 12& \textbf{0.029} \\
+Q4 vs Q2 & all  & 2  & 34& 1 & 30& \textbf{$<$0.0001} \\
+Q3 vs Q2 & all  & 2  & 46& 1 & 18& \textbf{$<$0.0001} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\caption{PLLuM, decisive contrast, all tasks, \texttt{repair\,=\,off}.}
+\label{tab:mcnemarpllum}
+\begin{tabular}{lccccc}
+\toprule
+pair & $n_{11}$ & $n_{10}$ & $n_{01}$ & $n_{00}$ & $p$ \\
+\midrule
+Q3 vs Q2 & 1 & 14 & 0 & 52 & \textbf{0.0001} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Bootstrap intervals}
+\label{app:bootstrap}
+
+\begin{table}[h]
+\centering\small
+\caption{All-task point estimates with 95\% intervals, \texttt{repair\,=\,off}. Every interval here and in Table~\ref{tab:boot-diff} is reported at a fixed resampling seed of 42. Recomputing under a second seed (20260823) leaves 16 of the 18 cells here identical to three decimals and moves a single endpoint by about $0.015$, one task in 67, in the other two: PLLuM Q8\_0 upper $0.299 \to 0.284$ and PLLuM Q5\_K\_M lower $0.045 \to 0.030$. One endpoint moves the same way in Table~\ref{tab:boot-diff}, the 7B Q3-versus-Q2 upper bound $+0.433 \to +0.418$. No interval changes sign or crosses zero.}
+\label{tab:boot-point}
+\begin{tabular}{llccc}
+\toprule
+model & precision & passes /67 & rate & 95\% interval \\
+\midrule
+\multirow{6}{*}{7B}
+ & Q8\_0   & 30 & 0.448 & $[0.328,\ 0.567]$ \\
+ & Q6\_K   & 31 & 0.463 & $[0.343,\ 0.582]$ \\
+ & Q5\_K\_M & 35 & 0.522 & $[0.403,\ 0.642]$ \\
+ & Q4\_K\_M & 34 & 0.507 & $[0.388,\ 0.627]$ \\
+ & Q3\_K\_M & 31 & 0.463 & $[0.343,\ 0.582]$ \\
+ & Q2\_K   & 10 & 0.149 & $[0.075,\ 0.239]$ \\
+\midrule
+\multirow{6}{*}{11B}
+ & Q8\_0   & 54 & 0.806 & $[0.701,\ 0.896]$ \\
+ & Q6\_K   & 56 & 0.836 & $[0.746,\ 0.925]$ \\
+ & Q5\_K\_M & 50 & 0.746 & $[0.642,\ 0.851]$ \\
+ & Q4\_K\_M & 36 & 0.537 & $[0.418,\ 0.657]$ \\
+ & Q3\_K\_M & 48 & 0.716 & $[0.597,\ 0.821]$ \\
+ & Q2\_K   & 3  & 0.045 & $[0.000,\ 0.104]$ \\
+\midrule
+\multirow{6}{*}{PLLuM}
+ & Q8\_0   & 13 & 0.194 & $[0.104,\ 0.299]$ \\
+ & Q6\_K   & 12 & 0.179 & $[0.090,\ 0.269]$ \\
+ & Q5\_K\_M & 7  & 0.104 & $[0.045,\ 0.179]$ \\
+ & Q4\_K\_M & 15 & 0.224 & $[0.134,\ 0.328]$ \\
+ & Q3\_K\_M & 15 & 0.224 & $[0.134,\ 0.328]$ \\
+ & Q2\_K   & 1  & 0.015 & $[0.000,\ 0.045]$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\caption{Selected paired differences on all 67 tasks, \texttt{repair\,=\,off}.}
+\label{tab:boot-diff}
+\begin{tabular}{llccl}
+\toprule
+model & contrast & difference & 95\% interval & excludes zero \\
+\midrule
+7B  & Q4 vs Q3 & $+0.045$ & $[-0.045,\ +0.149]$ & no \\
+7B  & Q3 vs Q2 & $+0.313$ & $[+0.209,\ +0.433]$ & \textbf{yes} \\
+11B & Q4 vs Q3 & $-0.179$ & $[-0.328,\ -0.030]$ & \textbf{yes} \\
+11B & Q3 vs Q2 & $+0.672$ & $[+0.552,\ +0.791]$ & \textbf{yes} \\
+PLLuM & Q3 vs Q2 & $+0.209$ & $[+0.119,\ +0.313]$ & \textbf{yes} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Token and step statistics, Bielik pair}
+\label{app:tokens}
+
+\begin{table}[h]
+\centering\small
+\caption{Token and step distributions by outcome, \texttt{repair\,=\,off}. Step budgets are per task, 4 to 10, and are 8 on 29 of the 67 tasks. Token counts are comparable only within the Bielik pair (shared tokenizer).}
+\label{tab:tokens-full}
+\begin{tabular}{llccccccc}
+\toprule
+model & precision & subset & $n$ & mean tok. & median tok. & p90 tok. & mean steps & median steps \\
+\midrule
+\multirow{8}{*}{7B}
+ & \multirow{2}{*}{Q8\_0}   & pass & 30 & 4540  & 3504  & 8645  & 3.30 & 3.0 \\
+ &                          & fail & 37 & 12346 & 12298 & 17219 & 7.27 & 8.0 \\
+ & \multirow{2}{*}{Q4\_K\_M} & pass & 34 & 4857  & 3501  & 11281 & 3.24 & 3.0 \\
+ &                          & fail & 33 & 12920 & 10793 & 21006 & 6.30 & 6.0 \\
+ & \multirow{2}{*}{Q3\_K\_M} & pass & 31 & 4766  & 3509  & 9844  & 3.23 & 3.0 \\
+ &                          & fail & 36 & 22362 & \textbf{26833} & 37766 & 7.22 & 8.0 \\
+ & \multirow{2}{*}{Q2\_K}   & pass & 10 & 4158  & 3230  & 6368  & 2.40 & 2.0 \\
+ &                          & fail & 57 & 13795 & 9139  & 32161 & 4.70 & 4.0 \\
+\midrule
+\multirow{12}{*}{11B}
+ & \multirow{2}{*}{Q8\_0}   & pass & 54 & 6309 & 5914 & 10381 & 4.33 & 4.5 \\
+ &                          & fail & 13 & 8473 & 8415 & 12806 & 5.62 & 6.0 \\
+ & \multirow{2}{*}{Q6\_K}   & pass & 56 & 6173 & 6378 & 9675  & 4.30 & 4.5 \\
+ &                          & fail & 11 & 7579 & 7510 & 12856 & 5.09 & 5.0 \\
+ & \multirow{2}{*}{Q5\_K\_M} & pass & 50 & 6220 & 5186 & 10691 & 4.30 & 4.0 \\
+ &                          & fail & 17 & 8742 & 7510 & 15398 & 5.59 & 5.0 \\
+ & \multirow{2}{*}{Q4\_K\_M} & pass & 36 & 5432 & 3561 & 10442 & 3.72 & 3.0 \\
+ &                          & fail & 31 & 9580 & 10849& 14254 & 5.77 & 6.0 \\
+ & \multirow{2}{*}{Q3\_K\_M} & pass & 48 & 5775 & 5228 & 8959  & 4.21 & 4.0 \\
+ &                          & fail & 19 & 7819 & 6693 & 12739 & 5.11 & 5.0 \\
+ & \multirow{2}{*}{Q2\_K}   & pass & 3  & 5629 & 4010 & 10240 & 3.33 & 3.0 \\
+ &                          & fail & 64 & 5386 & \textbf{1506} & 14650 & \textbf{2.75} & \textbf{1.0} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Length and language, per chain length, 7B}
+\label{app:lang}
+
+\begin{table}[h]
+\centering\small
+\caption{7B hard-tier chains by exact chain length and interface language, \texttt{repair\,=\,off}. The 4-tool \texttt{PL\_EN} family, the order-trap chains, is the model's persistent failure independent of precision.}
+\label{tab:lang7b}
+\begin{tabular}{llccccc}
+\toprule
+tools & language & $n$ & Q8\_0 & Q4\_K\_M & Q3\_K\_M & Q2\_K \\
+\midrule
+2 & PL\_EN & 9  & 7/9  & 9/9  & 9/9  & 1/9 \\
+2 & EN\_EN & 3  & 3/3  & 3/3  & 3/3  & 1/3 \\
+3 & EN\_EN & 6  & \textbf{0/6}  & 2/6  & 1/6  & 0/6 \\
+4 & PL\_EN & 11 & \textbf{0/11} & 1/11 & 2/11 & 0/11 \\
+4 & EN\_EN & 1  & 0/1  & 1/1  & 0/1  & 0/1 \\
+5 & PL\_EN & 2  & 1/2  & 1/2  & 0/2  & 0/2 \\
+5 & EN\_EN & 7  & 5/7  & 2/7  & 1/7  & 0/7 \\
+6 & EN\_EN & 1  & 0/1  & 0/1  & 1/1  & 0/1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The two bold cells fail differently: the 3-tool \texttt{EN\_EN} cell by envelope collapse, largely repairable, and the 4-tool \texttt{PL\_EN} cell by exhausting the step budget with no final answer, not repairable.
+
+\section{Worked example: a 4-tool order-trap chain}
+\label{app:example}
+
+\paragraph{Prompt, in Polish.} \emph{``Sprawdź pogodę w Katowicach. Następnie znajdź miasta w promieniu osiemdziesięciu kilometrów od Katowic i dla pierwszego miasta z otrzymanej listy pobierz prognozę na cztery dni. Na koniec podaj średnią temperaturę z drugiego i czwartego dnia tej prognozy w stopniach Fahrenheita.''}
+
+\paragraph{Gold specification.} Required sequence: \texttt{get\_weather(Katowice)}, \texttt{find\_nearest\_city(Katowice, 80)}, \texttt{get\_forecast(Kraków, 4)}, \texttt{convert\_temperature} Celsius to Fahrenheit. Accepted answers \texttt{["45.5", "45,5"]}; step budget 8; five tools offered, four required, one distractor.
+
+\paragraph{Three traps in one task.} \texttt{find\_nearest\_city("Katowice", 80)} returns \texttt{["Kraków", "Gliwice", "Sosnowiec", "Bielsko-Biała"]} in graph order, at 80, 25, 15, 50\,km: the first city is the farthest, and a model that silently reinterprets ``first'' as ``nearest'' fails. The numerals \emph{osiemdziesięciu} and \emph{cztery} must be parsed to 80 and 4. Only days 2 and 4 enter the mean. The gold is rounding-robust by construction: day 2 is $7.0$\,°C and day 4 is $8.0$\,°C, giving $7.5$\,°C and $45.5$\,°F exactly.
+
+\paragraph{A real passing trajectory, 11B at Q8\_0, 6 steps.} The model converts both days separately, obtaining $44.6$ and $46.4$, and averages in the final answer: $(44.6+46.4)/2 = 45.5$°F. The oracle checks an ordered subsequence, so this longer route passes; this observed behaviour is also the template for the ladder's graph-free L3N arm.
+
+\paragraph{The same task on the 7B at Q8\_0.} Eight steps, budget exhausted, no final answer, invalid JSON on the terminal step.
+
+\section{Envelope collapse, raw output}
+\label{app:envelope}
+Raw output for one affected task, 7B at Q8\_0, abbreviated:
+
+\begin{quote}\small
+\begin{tabular}{llp{8.2cm}}
+step 0 & ok & \verb|{"action":"call_tool","tool":"get_weather",|\linebreak\verb| "arguments":{"city":"Helsinki"}}| \\[2pt]
+step 1 & ok & \verb|{"action":"call_tool","tool":"get_forecast",|\linebreak\verb| "arguments":{"city":"Helsinki","days":4}}| \\[2pt]
+step 2 & \textbf{unknown action} & \verb|{"action":"convert_temperature",|\linebreak\verb| "arguments":{"value":2.5,"from_unit":"celsius",...}}| \\[2pt]
+step 3 & \textbf{unknown action} & \verb|{"action":"convert_temperature",|\linebreak\verb| "arguments":{"value":3.5,...}}| \\[2pt]
+step 4 & ok & \verb|{"action":"final_answer","answer":|\linebreak\verb| "... (2.5+3.5)/2 = 3.0°C * 9/5 + 32 = 36°F."}| \\
+\end{tabular}
+\end{quote}
+
+The first two calls are well formed; at the third distinct tool the envelope disappears. The arithmetic in the final answer is performed correctly in prose, which is why this is a protocol failure, not an arithmetic one. On sibling prompts the model additionally emits an arithmetic expression as a bare JSON literal and, after numeric repair, an object where the schema requires a string; the repair layer converts 5 of 6 slots to passes.
+
+\section{Extended ladder detail and the typing artifact}
+\label{app:ladder}
+
+\paragraph{Corrected cells.} The typing correction changes exactly four cells, all on L3N: 11B Q8\_0 $0.20 \to 0.90$, 11B Q4\_K\_M $0.00 \to 0.40$, 7B Q8\_0 $0.00 \to 0.70$, 7B Q4\_K\_M $0.10 \to 0.30$. Totals move accordingly (Table~\ref{tab:ladder}). No L0, L1, L2, or L3T cell changes at any precision.
+
+\paragraph{Artifact payloads.} Typical forgiven payloads: \verb|{"answer": 46.4}| (11B, bare float) and \verb|{"answer": {"average_temperature_fahrenheit": 46.4}}| (7B, object). In every forgiven case the four-call trajectory is oracle-clean and the payload contains the exact gold value.
+
+\paragraph{Control group, not forgiven.} Eight L1 and L2 failures carry the same \texttt{final\_answer\_missing} and \texttt{schema\_violation} tags but substantively wrong values, for example $59$ where the gold is $46.4$ and $54.2$ where it is $48.2$; all remain failures under the corrected rate. The value $59$ recurs across five different L1 instances of the 8-bit 11B (\texttt{a}, \texttt{e}, \texttt{h}, \texttt{i}, \texttt{j}), a degenerate repeated answer.
+
+\paragraph{Shortcut split, empty.} A pre-registered sensitivity split for trajectories that compute correctly but merge the two required conversions into one found zero cases in all eight Bielik ladder runs; the tolerant and strict rates coincide on that dimension.
+
+\paragraph{Statistical notes on the ladder tests.} In these data $n_{11}=0$ in all 42 rung comparisons at both rates: no instance passes both L0 and a scaffolded rung, so each paired table is fixed by its marginals and the exact McNemar reduces to an exact sign test; the pairing is methodologically correct but adds no information beyond the sums. The typing correction is one-directional by construction: none of the 138 L0 failures across the fourteen ladder cells carries a purely format-side tag set, so the correction can only raise scaffolded rungs, never L0, and cannot flip a contrast; we accordingly do not cite the absence of flips as evidence. Finally, $p<0.05$ requires at least six discordant instances in one direction, so the 29 of 42 comparisons with zero discordants return $p=1.0$ by definition rather than by measurement.
+
+\paragraph{PLLuM on the ladder.} PLLuM's only two ladder passes across all six precisions are both at L0 (instances c and f at 8-bit); every scaffolded rung is 0. This nominally reverses the gradient direction at $n_{10}=2$, $p=0.5$, and supports no inference.
+
+\paragraph{L0 mechanisms.} At Q8\_0 and Q3\_K\_M the 11B's ten L0 failures all carry \texttt{unexpected\_tool\_call}: the model reaches for tools although the task supplies the numbers and forbids calls. The 7B's ten L0 failures at Q8\_0 carry \texttt{unknown\_action} (10) and \texttt{final\_answer\_missing} (9): it makes no calls but cannot produce a well-formed final answer.
+
+\section{Sampling probe detail}
+\label{app:variance}
+Seed handling: the sampling seed is passed to each step's completion call, not to the model constructor, so every step's sampling stream restarts from the same seed; this is uniform across seeds. Diagnosis of the collapsed seed: trajectories begin normally; the deficit concentrates in malformed action envelopes whose parse failures cascade; forgiving format-cascade failures alone yields $0.776$ (Q8\_0) and $0.881$ (Q3\_K\_M) for seed 1. Under the same forgiveness seeds 2 and 3 reach $0.910$ and $0.955$ at Q8\_0 and $0.821$ and $0.925$ at Q3\_K\_M, so the like-for-like comparison places seed 1 inside their band at Q3\_K\_M and below both at Q8\_0. The repeated-content hypothesis is rejected: seed 3 shows the most repetition and scores 48 of 67.
+
+\begin{thebibliography}{99}
+
+\bibitem{llamacpp}
+Georgi Gerganov and the llama.cpp contributors.
+\newblock \emph{llama.cpp: LLM inference in C/C++}.
+\newblock \url{https://github.com/ggml-org/llama.cpp}. Quantization tooling documented in \texttt{tools/quantize}.
+
+\bibitem{quantsurvey}
+\emph{Resource-Efficient Language Models: Quantization for Fast and Accessible Inference}.
+\newblock arXiv:2505.08620, 2025.
+
+\bibitem{kquanteval}
+\emph{Which Quantization Should I Use? A Unified Evaluation of llama.cpp Quantization on Llama-3.1-8B-Instruct}.
+\newblock arXiv:2601.14277, 2026.
+
+\bibitem{bfcl}
+Fanjia Yan et al.
+\newblock \emph{The Berkeley Function Calling Leaderboard (BFCL): From Tool Use to Agentic Evaluation of Large Language Models}.
+\newblock International Conference on Machine Learning (ICML), 2025.
+
+\bibitem{taubench}
+Shunyu Yao et al.
+\newblock \emph{$\tau$-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains}.
+\newblock 2024.
+
+\bibitem{agentbench}
+Xiao Liu et al.
+\newblock \emph{AgentBench: Evaluating LLMs as Agents}.
+\newblock International Conference on Learning Representations (ICLR), 2024.
+
+\bibitem{toolllm}
+Yujia Qin et al.
+\newblock \emph{ToolLLM: Facilitating Large Language Models to Master 16000+ Real-World APIs}.
+\newblock International Conference on Learning Representations (ICLR), 2024.
+
+\bibitem{funcbenchgen}
+\emph{Towards Reliable Benchmarking: A Contamination-Free, Controllable Evaluation Framework for Multi-step LLM Function Calling}.
+\newblock arXiv:2509.26553, 2025.
+
+\bibitem{tinyllm}
+\emph{TinyLLM: Evaluation and Optimization of Small Language Models for Agentic Tasks on Edge Devices}.
+\newblock arXiv:2511.22138, 2025.
+
+\bibitem{bielik7b}
+Krzysztof Ociepa, Łukasz Flis, Krzysztof Wróbel, Adrian Gwoździej, and Remigiusz Kinas.
+\newblock \emph{Bielik 7B v0.1: A Polish Language Model, Development, Insights, and Evaluation}.
+\newblock arXiv:2410.18565, 2024.
+
+\bibitem{bielik11bv2}
+Krzysztof Ociepa, Łukasz Flis, Krzysztof Wróbel, Adrian Gwoździej, and Remigiusz Kinas.
+\newblock \emph{Bielik 11B v2 Technical Report}.
+\newblock arXiv:2505.02410, 2025.
+
+\bibitem{bielikv3}
+Krzysztof Ociepa, Łukasz Flis, Remigiusz Kinas, Krzysztof Wróbel, and Adrian Gwoździej.
+\newblock \emph{Bielik v3 Small: Technical Report}.
+\newblock arXiv:2505.02550, 2025.
+
+\bibitem{pllum}
+PLLuM Consortium.
+\newblock \emph{Llama-PLLuM-8B-instruct}. Model release, Hugging Face (CYFRAGOVPL); GGUF conversion by mradermacher.
+\newblock [Add the consortium's formal report citation if available.]
+
+\bibitem{priorwork}
+Jakub Prejzner.
+\newblock \emph{Bielik-Q2-Sharp: A Comparative Study of Extreme 2-bit Quantization Methods for a Polish 11B Language Model}.
+\newblock arXiv:2603.04162 [cs.CL], 2026.
+
+\end{thebibliography}
+
+\end{document}

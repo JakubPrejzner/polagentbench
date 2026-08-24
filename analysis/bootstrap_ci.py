@@ -6,7 +6,7 @@ CO LICZY:
 Dla kazdej komorki model x kwant na suicie main67 buduje wektor 0/1 dlugosci 67 (jedno
 zadanie = jedna obserwacja) i liczy percentylowy przedzial ufnosci 95% dla pass rate,
 losujac ze zwracaniem PO ZADANIACH (nie po krokach, nie po trajektoriach), 10 000 prob.
-Ziarno jest ustalone na sztywno: SEED = 20260823, przekazywane jako rng_seed do
+Ziarno jest ustalone na sztywno: SEED = 42, przekazywane jako rng_seed do
 polagentbench.eval.stats.bootstrap_ci, ktory tworzy random.Random(SEED) osobno dla kazdej
 komorki - wynik jest odtwarzalny co do cyfry i nie zalezy od kolejnosci komorek. Wektor
 jest zawsze uporzadkowany rosnaco po task_id (kolejnosc wplywa na konkretne losowania).
@@ -49,7 +49,10 @@ from polagentbench.eval.stats import bootstrap_ci  # noqa: E402
 from polagentbench.io import load_all_tasks  # noqa: E402
 from polagentbench.types import Trajectory  # noqa: E402
 
-SEED = 20260823          # ziarno na sztywno - patrz docstring
+SEED = 42                # ziarno na sztywno - patrz docstring.
+                         # 42 jest ziarnem, przy ktorym policzono WSZYSTKIE przedzialy
+                         # raportowane w paperze (tab:boot-point i tab:boot-diff);
+                         # zmiana tej wartosci rozjedzie skrypt z papierem.
 N_RESAMPLES = 10000      # liczba prob bootstrapu
 ALPHA = 0.05             # przedzial 95%
 N_TASKS = 67             # suite main67 = tasks/adversarial/*.yaml

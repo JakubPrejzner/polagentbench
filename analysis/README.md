@@ -111,7 +111,7 @@ nie efektem głębokości łańcucha. U Bielika-7B żadna z dwóch zmiennych nie
 | `bootstrap_ci.py` | tabela CI 95% dla 18 komórek `main67` (repair=off) + druga tabela dla repair=ON + blok porównań (a) Q8/Q6/Q5 i (b) Q3→Q2 | przedziały Q8, Q6 i Q5 **nachodzą na siebie u wszystkich trzech modeli** (część wspólna całej trójki: 11B `[0.746, 0.851]`, 7B `[0.403, 0.567]`, PLLuM `[0.104, 0.179]`), a spadek Q3→Q2 przekracza szerszy z dwóch CI o **44,8 pp** (11B), **7,5 pp** (7B) i **1,5 pp** (PLLuM) |
 
 Bootstrap percentylowy, przedział 95%, **resampling po zadaniach** (wektor 0/1 długości 67,
-losowanie ze zwracaniem), 10 000 prób. Ziarno na sztywno `SEED = 20260823`, wektor uporządkowany
+losowanie ze zwracaniem), 10 000 prób. Ziarno na sztywno `SEED = 42` (to samo, przy którym policzono przedziały w paperze), wektor uporządkowany
 rosnąco po `task_id`, `random.Random(SEED)` tworzony osobno dla każdej komórki — wynik jest
 odtwarzalny co do cyfry (sprawdzone trzema przebiegami, identyczne bajt w bajt). Werdykty
 wyłącznie z oracle'a: `run.log` tam, gdzie istnieje (7B Q5/Q6 i wszystkie komórki PLLuM),
