@@ -104,6 +104,25 @@ poprawnie wykonanym łańcuchu narzędzi.
 **Finding:** spłaszczanie koperty u PLLuM jest efektem specyficznym dla `convert_temperature`,
 nie efektem głębokości łańcucha. U Bielika-7B żadna z dwóch zmiennych nie tłumaczy niczego.
 
+### Tryby porażki i koszt trajektorii
+
+| skrypt | produkuje | kluczowa liczba |
+|---|---|---|
+| `mode_tables.py` | cztery tabele naraz: `tab:purity`, `tab:modes`, `tab:tokens`, `tab:tokens-full` — 18 komórek `main67` (repair=off) | artefakt zaokrągleniowy pada **dokładnie raz w całej siatce**, na 7B `Q5_K_M`; komórka 7B `Q6_K` ma **0 z 21 porażek jednokategoryjnych**, czyli jest najmniej rozstrzygniętą etykietą w Tab. 1 |
+
+Jedyny skrypt w tym katalogu, który czyta **`release_data/`, nie `results/`** — działa więc
+z samego klona repo, bez surowych katalogów runów. Werdykty wyłącznie z oracle'a
+(`eval.smoke.evaluate`), etykiety z `failure_classifier.py`. Ma wbudowaną bramkę: 36 komórek
+opublikowanych w paperze jest wpisanych ręcznie w `PUBLISHED_MODES` / `PUBLISHED_TOKENS`,
+skrypt porównuje się z nimi i kończy kodem 1 przy jakimkolwiek rozjeździe. Komórki 7B `Q6_K`
+i `Q5_K_M` (oznaczone `NOWA`) zostały dopisane do papera tym skryptem, po tym jak przeszedł
+bramkę na wszystkich pozostałych.
+
+Pułapka wyboru runów: w `runs.csv` sześć runów `v3_11b_variance_*` ma ten sam `model_id`,
+`quant`, `suite` i `repair` co komórki 11B `Q8_0` i `Q3_K_M`, a jest to sonda wariancji przy
+`T=0.7` (Tab. 9), nie krzywa główna. Skrypt je wyklucza, wymaga dokładnie jednego runu na
+komórkę i sprawdza, że każda czytana trajektoria ma `temperature == 0`.
+
 ### Podłoga szumu: bootstrap CI
 
 | skrypt | produkuje | kluczowa liczba |

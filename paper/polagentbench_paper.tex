@@ -1,5 +1,6 @@
 \documentclass[11pt]{article}
 
+\usepackage{cmap}          % ToUnicode CMaps: kopiowanie i wyszukiwanie tekstu w PDF
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage[margin=1in]{geometry}
@@ -113,7 +114,7 @@ The taxonomy applies to failing trajectories on the 25 arithmetic-graded main-su
   \item Otherwise, \textsc{other}.
 \end{enumerate}
 
-\paragraph{The labels are less determinate than they look.} The taxonomy is single-label with a hard priority order, and many failures carry tags from more than one category, so the priority rule decides a large share of assignments. Table~\ref{tab:purity} reports how often a failure's tags fall within a single category, which we treat as a label-confidence indicator. Two consequences follow and are applied consistently in Section~\ref{sec:f2}. The 3-bit labels are the most trustworthy for the Bieliks (13 of 20 and 8 of 10 single-category). The 8-bit label for the 7B and the 2-bit labels for both Bieliks are the least trustworthy: at 7B 8-bit only 1 of 21 failures is single-category, and 18 of 21 carry protocol and fixation tags together, so the \textsc{protocol shape} count records which rule fired first rather than establishing that fixation was absent. PLLuM's labels are no better determined: only 39 of its 140 failures across the curve trigger a single rule branch, the dominant co-occurrence, a wrong final answer together with fixation tags, covers 90 of 140, and reversing the priority would relabel 72 percent of them (Appendix~\ref{app:taxonomy}); PLLuM's failure profile in Section~\ref{sec:f2} therefore rests on priority-independent tag counts, not on the single-label winner.
+\paragraph{The labels are less determinate than they look.} The taxonomy is single-label with a hard priority order, and many failures carry tags from more than one category, so the priority rule decides a large share of assignments. Table~\ref{tab:purity} reports how often a failure's tags fall within a single category, which we treat as a label-confidence indicator. Two consequences follow and are applied consistently in Section~\ref{sec:f2}. The 3-bit labels are the most trustworthy for the Bieliks (13 of 20 and 8 of 10 single-category). The 7B's high-precision plateau and the 2-bit labels for both Bieliks are the least trustworthy. At 7B 6-bit not one of the 21 failures is single-category and at 8-bit only 1 of 21 is; both cells break the same way, 15 of 21 and 18 of 21 respectively carrying protocol and fixation tags together, so the \textsc{protocol shape} count records which rule fired first rather than establishing that fixation was absent. PLLuM's labels are no better determined: only 39 of its 140 failures across the curve trigger a single rule branch, the dominant co-occurrence, a wrong final answer together with fixation tags, covers 90 of 140, and reversing the priority would relabel 72 percent of them (Appendix~\ref{app:taxonomy}); PLLuM's failure profile in Section~\ref{sec:f2} therefore rests on priority-independent tag counts, not on the single-label winner.
 
 \begin{table}[h]
 \centering\small
@@ -123,8 +124,8 @@ The taxonomy applies to failing trajectories on the 25 arithmetic-graded main-su
 \toprule
 & & Q8\_0 & Q6\_K & Q5\_K\_M & Q4\_K\_M & Q3\_K\_M & Q2\_K \\
 \midrule
-\multirow{2}{*}{7B}  & failures      & 21 & --- & --- & 21 & 20 & 25 \\
-                     & single category & \textbf{1} & --- & --- & 5 & \textbf{13} & 7 \\
+\multirow{2}{*}{7B}  & failures      & 21 & 21 & 21 & 21 & 20 & 25 \\
+                     & single category & 1 & \textbf{0} & 4 & 5 & \textbf{13} & 7 \\
 \midrule
 \multirow{2}{*}{11B} & failures      & 11 & 10 & 11 & 17 & 10 & 25 \\
                      & single category & 3 & 3 & 4 & 2 & \textbf{8} & \textbf{3} \\
@@ -216,20 +217,20 @@ Pass rates say where models fail; they do not say how. Table~\ref{tab:modes} giv
 
 \begin{table}[h]
 \centering
-\caption{Failure modes on the 25 arithmetic-graded tasks, \texttt{repair\,=\,off}: total failures, then \textsc{protocol shape}, \textsc{genuine arithmetic}, \textsc{tool fixation}. The rounding artifact is zero in every cell shown, and across the full grid it fires exactly once, at the 7B's Q5\_K\_M point, which this table does not resolve (Appendix~\ref{app:taxonomy}). Labels at 7B 8-bit, at 2-bit everywhere, and throughout the PLLuM row are priority-dominated and indicative only (Section~\ref{sec:taxonomy}).}
+\caption{Failure modes on the 25 arithmetic-graded tasks, \texttt{repair\,=\,off}: total failures, then \textsc{protocol shape}, \textsc{genuine arithmetic}, \textsc{tool fixation}. The rounding artifact fires exactly once across the whole grid, at the 7B's Q5\_K\_M point, and is zero in every other cell; that one case is why the three mode counts in that cell sum to 20 rather than 21 (Appendix~\ref{app:taxonomy}). Labels at 7B 8-bit, at 2-bit everywhere, and throughout the PLLuM row are priority-dominated and indicative only (Section~\ref{sec:taxonomy}).}
 \label{tab:modes}
 \begin{tabular}{lcccccc}
 \toprule
 & Q8\_0 & Q6\_K & Q5\_K\_M & Q4\_K\_M & Q3\_K\_M & Q2\_K \\
 \midrule
-7B    & 21 / 16 / 4 / 1 & --- & --- & 21 / 7 / \textbf{13} / 1 & 20 / 5 / 4 / \textbf{11} & 25 / 6 / 15 / 4 \\
+7B    & 21 / 16 / 4 / 1 & 21 / 12 / 9 / 0 & 21 / 12 / 6 / 2 & 21 / 7 / \textbf{13} / 1 & 20 / 5 / 4 / \textbf{11} & 25 / 6 / 15 / 4 \\
 11B   & 11 / 5 / 4 / 2 & 10 / 3 / 5 / 2 & 11 / 4 / 6 / 1 & 17 / 9 / 7 / 1 & 10 / \textbf{0} / 7 / 3 & 25 / 5 / 19 / 1 \\
 PLLuM & 23 / 0 / \textbf{23} / 0 & 23 / 0 / 22 / 1 & 24 / 4 / 20 / 0 & 23 / 1 / 22 / 0 & 22 / 1 / 20 / 1 & 25 / 0 / \textbf{23} / 2 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Taken at face value the 7B exhibits an orderly progression: protocol violations dominate at 8-bit, genuine miscalculation at 4-bit, fixation at 3-bit. The 3-bit fixation result is solid (13 of 20 failures single-category, corroborated by trajectory cost below); the 8-bit protocol result is priority-dependent, though Section~\ref{sec:envelope} identifies a concrete mechanism behind it. \textbf{The 11B does not reproduce the progression}: protocol and arithmetic failures interleave across its healthy precisions, its 3-bit protocol failures fall to zero in the cell where labels are most determinate, and its fixation counts never rise the way the 7B's do. \textbf{PLLuM shows a third profile}, and it is where the single-label taxonomy must be read most carefully. Under the as-run priority nearly every PLLuM failure lands in genuine arithmetic (130 of 140 across the whole curve; protocol shape 6, fixation 4), at every precision including 2-bit. That label is priority-dominated: 90 of the 140 carry a wrong final answer together with fixation tags, chiefly \texttt{wrong\_tool\_order}, so a reversed priority would call most of them fixation instead (Appendix~\ref{app:taxonomy}). What survives either reading is the tag-level picture of Section~\ref{sec:setup}: format tags are rare (29 against 74 content tags at 8-bit, the inverse of Bielik), parse fluency is near the 11B's, and the ceiling under maximal format forgiveness is $0.478$. Read either way, PLLuM fails on the task itself, wrong values and wrong call structure, while speaking the protocol, and its 2-bit collapse adds no new signature; it simply removes the few successes there were. That is the third profile: not a different way of breaking under quantization, but the same content failure at every precision, terminated by the shared cliff.
+Taken at face value the 7B exhibits an orderly progression: protocol violations dominate across the whole 8-bit to 5-bit plateau, genuine miscalculation at 4-bit, fixation at 3-bit. The 3-bit fixation result is solid (13 of 20 failures single-category, corroborated by trajectory cost below); the protocol result across the 8-bit to 5-bit plateau is priority-dependent, and least determined of all at 6-bit, though Section~\ref{sec:envelope} identifies a concrete mechanism behind it. \textbf{The 11B does not reproduce the progression}: protocol and arithmetic failures interleave across its healthy precisions, its 3-bit protocol failures fall to zero in the cell where labels are most determinate, and its fixation counts never rise the way the 7B's do. \textbf{PLLuM shows a third profile}, and it is where the single-label taxonomy must be read most carefully. Under the as-run priority nearly every PLLuM failure lands in genuine arithmetic (130 of 140 across the whole curve; protocol shape 6, fixation 4), at every precision including 2-bit. That label is priority-dominated: 90 of the 140 carry a wrong final answer together with fixation tags, chiefly \texttt{wrong\_tool\_order}, so a reversed priority would call most of them fixation instead (Appendix~\ref{app:taxonomy}). What survives either reading is the tag-level picture of Section~\ref{sec:setup}: format tags are rare (29 against 74 content tags at 8-bit, the inverse of Bielik), parse fluency is near the 11B's, and the ceiling under maximal format forgiveness is $0.478$. Read either way, PLLuM fails on the task itself, wrong values and wrong call structure, while speaking the protocol, and its 2-bit collapse adds no new signature; it simply removes the few successes there were. That is the third profile: not a different way of breaking under quantization, but the same content failure at every precision, terminated by the shared cliff.
 
 \subsection{Two opposite collapses in the Bielik family, visible in trajectory cost}
 The clearest divergence is at the shared threshold, and it is measured without reference to the taxonomy. Table~\ref{tab:tokens} contrasts the token and step cost of failing against passing trajectories for the Bieliks; token counts are comparable within this pair because both models share one tokenizer, and cross-family comparisons with PLLuM would require steps rather than tokens.
@@ -244,8 +245,10 @@ The clearest divergence is at the shared threshold, and it is measured without r
 \cmidrule(lr){3-4}\cmidrule(lr){5-6}
 model & precision & pass & fail & pass & fail \\
 \midrule
-\multirow{4}{*}{7B}
+\multirow{6}{*}{7B}
  & Q8\_0   & 3504 & 12298 & 3.0 & 8.0 \\
+ & Q6\_K   & 3515 & 12384 & 3.0 & 8.0 \\
+ & Q5\_K\_M & 3577 & 14066 & 3.0 & 8.0 \\
  & Q4\_K\_M & 3501 & 10793 & 3.0 & 6.0 \\
  & Q3\_K\_M & 3509 & \textbf{26833} & 3.0 & \textbf{8.0} \\
  & Q2\_K   & 3230 & 9139 & 2.0 & 4.0 \\
@@ -439,7 +442,7 @@ Our original hypothesis H1, that quantization erodes agentic ability before gene
 We measured agentic tool use under GGUF quantization for three Polish-focused models spanning two axes of variation, compression within a family and a change of pretraining family, at six precisions each, on a deterministic benchmark with a Polish prompt and English schema interface. The collapse threshold between 3-bit and 2-bit replicates in all three models, across a fourfold spread in capability, and is on this evidence a property of quantization. Nothing else replicates. The compressed child hangs at collapse while its parent disintegrates in a single step and the foreign-family model fails on content while speaking the protocol fluently. Scaffolding helps both Bieliks once a scoring artifact is removed, and what actually separates them is the order trap, not the tool count. The interface gap appears only in degraded configurations or as a proxy for one unsolved task family. Under sampling, the first thing to break is format discipline, not reasoning. Along the way this benchmark penalized correct behaviour three separate times, through rounding-hostile gold values, priority-driven failure labels, and strict answer typing, and we report every affected result in both strict and corrected form as a template for how synthetic agentic benchmarks can disclose their own instruments. The natural next steps are a native, non-distilled model at 7B scale from the Bielik lineage, which would separate pruning-and-distillation from capability, and a stronger foreign-family tool-use model, which would carry the family axis at a competitive absolute level.
 
 \section*{Reproducibility}
-Models: Bielik-11B-v3.0-Instruct (six pre-built quantizations, one publisher), Bielik-Minitron-7B-v3.0-Instruct (Q8\_0 and Q4\_K\_M direct; Q6\_K, Q5\_K\_M, Q3\_K\_M, Q2\_K requantized from Q8\_0 via \texttt{llama-quantize -{}-allow-requantize}), Llama-PLLuM-8B-instruct (community GGUF, \texttt{llama-3} chat template). Inference: \texttt{llama-cpp-python} 0.3.19, prebuilt CUDA-12 wheel, single RTX 4090, full offload, $T=0$, seed 42, per-task step budget (main suite 4 to 10, 8 on 29 of 67 tasks; 8 on every ladder task); ChatML for the Bieliks. Determinism verified as semantic bit-identity of greedy decoding across model-load cycles. Every \texttt{summary.json} carries its source commit hash: \texttt{83db813} (7B main), \texttt{a023c3b} (11B main), \texttt{e584b38} (extended ladder, PLLuM curve, 7B grid completion, sampling probe). Commit messages in the public repository were normalized before release; a full mapping from the development identifiers above to the released commits, together with tree-hash identity checks, ships as \texttt{docs/commit\_map.tsv}; the file trees are byte-identical. Independent oracle re-evaluation reproduces all Bielik main-suite counts (24 of 24 runs). Suites: 67 main tasks and 46 ladder tasks, all validated offline by ideal-trajectory and give-up-trajectory checks before any GPU run; 204 unit tests green at the stamped commits. Statistics: paired McNemar exact (two-sided), instance-paired on the ladder; percentile bootstrap, 10{,}000 resamples, paired over tasks for differences. Released artifacts include task definitions, all trajectories, per-task outcome matrices, the failure classifier, and analysis scripts. Implementation, experiment execution, and manuscript drafting were assisted by AI systems (Anthropic's Claude) operating under the author's direction; all design decisions, data judgments, and final content are the author's responsibility.
+Models: Bielik-11B-v3.0-Instruct (six pre-built quantizations, one publisher), Bielik-Minitron-7B-v3.0-Instruct (Q8\_0 and Q4\_K\_M direct; Q6\_K, Q5\_K\_M, Q3\_K\_M, Q2\_K requantized from Q8\_0 via \texttt{llama-quantize -{}-allow-requantize}), Llama-PLLuM-8B-instruct (community GGUF, \texttt{llama-3} chat template). Inference: \texttt{llama-cpp-python} 0.3.19, prebuilt CUDA-12 wheel, single RTX 4090, full offload, $T=0$, seed 42, per-task step budget (main suite 4 to 10, 8 on 29 of 67 tasks; 8 on every ladder task); ChatML for the Bieliks. Determinism verified as semantic bit-identity of greedy decoding across model-load cycles. Every \texttt{summary.json} carries its source commit hash: \texttt{83db813} (7B main), \texttt{a023c3b} (11B main), \texttt{e584b38} (extended ladder, PLLuM curve, 7B grid completion, sampling probe). Commit messages in the public repository were normalized before release; a full mapping from the development identifiers above to the released commits, together with tree-hash identity checks, ships as \texttt{docs/commit\_map.tsv}; the file trees are byte-identical. Independent oracle re-evaluation reproduces all Bielik main-suite counts (24 of 24 runs). Suites: 67 main tasks and 46 ladder tasks, all validated offline by ideal-trajectory and give-up-trajectory checks before any GPU run; 204 unit tests green at the stamped commits. Statistics: paired McNemar exact (two-sided), instance-paired on the ladder; percentile bootstrap, 10{,}000 resamples, paired over tasks for differences. Released artifacts include task definitions, all trajectories, per-task outcome matrices, the failure classifier, and analysis scripts; the repository is public at \url{https://github.com/JakubPrejzner/polagentbench}. Implementation, experiment execution, and manuscript drafting were assisted by AI systems (Anthropic's Claude) operating under the author's direction; all design decisions, data judgments, and final content are the author's responsibility.
 
 \appendix
 
@@ -684,9 +687,13 @@ PLLuM & Q3 vs Q2 & $+0.209$ & $[+0.119,\ +0.313]$ & \textbf{yes} \\
 \toprule
 model & precision & subset & $n$ & mean tok. & median tok. & p90 tok. & mean steps & median steps \\
 \midrule
-\multirow{8}{*}{7B}
+\multirow{12}{*}{7B}
  & \multirow{2}{*}{Q8\_0}   & pass & 30 & 4540  & 3504  & 8645  & 3.30 & 3.0 \\
  &                          & fail & 37 & 12346 & 12298 & 17219 & 7.27 & 8.0 \\
+ & \multirow{2}{*}{Q6\_K}   & pass & 31 & 4280  & 3515  & 8589  & 3.29 & 3.0 \\
+ &                          & fail & 36 & 11141 & 12384 & 14820 & 7.03 & 8.0 \\
+ & \multirow{2}{*}{Q5\_K\_M} & pass & 35 & 6674  & 3577  & 13752 & 3.74 & 3.0 \\
+ &                          & fail & 32 & 15840 & 14066 & 29083 & 6.47 & 8.0 \\
  & \multirow{2}{*}{Q4\_K\_M} & pass & 34 & 4857  & 3501  & 11281 & 3.24 & 3.0 \\
  &                          & fail & 33 & 12920 & 10793 & 21006 & 6.30 & 6.0 \\
  & \multirow{2}{*}{Q3\_K\_M} & pass & 31 & 4766  & 3509  & 9844  & 3.23 & 3.0 \\
@@ -800,11 +807,13 @@ Georgi Gerganov and the llama.cpp contributors.
 \newblock \url{https://github.com/ggml-org/llama.cpp}. Quantization tooling documented in \texttt{tools/quantize}.
 
 \bibitem{quantsurvey}
-\emph{Resource-Efficient Language Models: Quantization for Fast and Accessible Inference}.
+Tollef Emil Jørgensen.
+\newblock \emph{Resource-Efficient Language Models: Quantization for Fast and Accessible Inference}.
 \newblock arXiv:2505.08620, 2025.
 
 \bibitem{kquanteval}
-\emph{Which Quantization Should I Use? A Unified Evaluation of llama.cpp Quantization on Llama-3.1-8B-Instruct}.
+Uygar Kurt.
+\newblock \emph{Which Quantization Should I Use? A Unified Evaluation of llama.cpp Quantization on Llama-3.1-8B-Instruct}.
 \newblock arXiv:2601.14277, 2026.
 
 \bibitem{bfcl}
@@ -828,11 +837,13 @@ Yujia Qin et al.
 \newblock International Conference on Learning Representations (ICLR), 2024.
 
 \bibitem{funcbenchgen}
-\emph{Towards Reliable Benchmarking: A Contamination-Free, Controllable Evaluation Framework for Multi-step LLM Function Calling}.
+Seiji Maekawa, Jackson Hassell, Pouya Pezeshkpour, Tom Mitchell, and Estevam Hruschka.
+\newblock \emph{Towards Reliable Benchmarking: A Contamination-Free, Controllable Evaluation Framework for Multi-step LLM Function Calling}.
 \newblock arXiv:2509.26553, 2025.
 
 \bibitem{tinyllm}
-\emph{TinyLLM: Evaluation and Optimization of Small Language Models for Agentic Tasks on Edge Devices}.
+Mohd Ariful Haque, Fahad Rahman, Kishor Datta Gupta, Khalil Shujaee, and Roy George.
+\newblock \emph{TinyLLM: Evaluation and Optimization of Small Language Models for Agentic Tasks on Edge Devices}.
 \newblock arXiv:2511.22138, 2025.
 
 \bibitem{bielik7b}
@@ -851,9 +862,10 @@ Krzysztof Ociepa, Łukasz Flis, Remigiusz Kinas, Krzysztof Wróbel, and Adrian G
 \newblock arXiv:2505.02550, 2025.
 
 \bibitem{pllum}
-PLLuM Consortium.
-\newblock \emph{Llama-PLLuM-8B-instruct}. Model release, Hugging Face (CYFRAGOVPL); GGUF conversion by mradermacher.
-\newblock [Add the consortium's formal report citation if available.]
+Jan Kocoń et al.
+\newblock \emph{PLLuM: A Family of Polish Large Language Models}.
+\newblock arXiv:2511.03823, 2025.
+\newblock Model release: \texttt{Llama-PLLuM-8B-instruct}, Hugging Face (CYFRAGOVPL); GGUF conversion by mradermacher.
 
 \bibitem{priorwork}
 Jakub Prejzner.
