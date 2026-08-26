@@ -45,7 +45,10 @@ Polish-focused model, so the family axis is not confounded with the interface la
    separates the models cleanly: 11B `6/6`, 7B `0/6`.
 
 4. **The Polish-versus-English gap is a signature of degradation, not a property of the
-   interface** — it widens as precision drops rather than sitting at a constant offset.
+   interface.** In the parent model Polish matches or beats English on long chains at every
+   healthy precision and the English advantage appears only at the anomalous Q4_K_M dip; in
+   the compressed child the gap is a proxy for one unsolved task family, the 4-tool
+   order-trap chains.
 
 5. **Three benchmark artifacts materially shaped the conclusions, and are documented rather
    than hidden**: a rounding mine in synthetic gold values that had shifted the apparent
@@ -136,6 +139,12 @@ polagentbench run-suite \
 `--repair` is off by default and stays off for baseline numbers: repair is a benchmarked
 mitigation, not the baseline. Note the filename prefix is `minitron-Bielik-…`, not
 `Bielik-Minitron-…`, on the publisher's side.
+
+Greedy decoding at `--temperature 0.0` is reproducible for most but not all tasks: on the
+matched-twin prompts, which are identical, the published trajectories coincide in 109 of
+180 pairs across the three models (46/60 for the 11B, 32/60 for the 7B, 31/60 for PLLuM),
+consistent with floating-point nondeterminism in CUDA inference. Expect small differences
+between re-runs; the oracle verdicts in `release_data/` are the reference.
 
 ### Re-score published trajectories (no GPU)
 
