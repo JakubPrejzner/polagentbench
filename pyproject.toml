@@ -38,8 +38,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/JakubPrejzner/polagentbench2026"
-Repository = "https://github.com/JakubPrejzner/polagentbench2026"
+Homepage = "https://github.com/JakubPrejzner/polagentbench"
+Repository = "https://github.com/JakubPrejzner/polagentbench"
 
 [project.scripts]
 polagentbench = "polagentbench.cli:main"

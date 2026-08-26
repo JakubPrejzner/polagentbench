@@ -11,8 +11,8 @@ authors:
   - family-names: Prejzner
     given-names: Jakub
     email: rd4drop@gmail.com
-repository-code: "https://github.com/JakubPrejzner/polagentbench2026"
-url: "https://github.com/JakubPrejzner/polagentbench2026"
+repository-code: "https://github.com/JakubPrejzner/polagentbench"
+url: "https://github.com/JakubPrejzner/polagentbench"
 license: MIT
 keywords:
   - quantization
