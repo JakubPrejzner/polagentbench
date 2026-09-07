@@ -223,6 +223,8 @@ Pass rates say where models fail; they do not say how. Table~\ref{tab:modes} giv
 \centering
 \caption{Failure modes on the 25 arithmetic-graded tasks, \texttt{repair\,=\,off}: total failures, then \textsc{protocol shape}, \textsc{genuine arithmetic}, \textsc{tool fixation}. The rounding artifact fires exactly once across the whole grid, at the 7B's Q5\_K\_M point, and is zero in every other cell; that one case is why the three mode counts in that cell sum to 20 rather than 21 (Appendix~\ref{app:taxonomy}). Labels at 7B 8-bit, at 2-bit everywhere, and throughout the PLLuM row are priority-dominated and indicative only (Section~\ref{sec:taxonomy}).}
 \label{tab:modes}
+\setlength{\tabcolsep}{4pt}%
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{lcccccc}
 \toprule
 & Q8\_0 & Q6\_K & Q5\_K\_M & Q4\_K\_M & Q3\_K\_M & Q2\_K \\
@@ -231,7 +233,8 @@ Pass rates say where models fail; they do not say how. Table~\ref{tab:modes} giv
 11B   & 11 / 5 / 4 / 2 & 10 / 3 / 5 / 2 & 11 / 4 / 6 / 1 & 17 / 9 / 7 / 1 & 10 / \textbf{0} / 7 / 3 & 25 / 5 / 19 / 1 \\
 PLLuM & 23 / 0 / \textbf{23} / 0 & 23 / 0 / 22 / 1 & 24 / 4 / 20 / 0 & 23 / 1 / 22 / 0 & 22 / 1 / 20 / 1 & 25 / 0 / \textbf{23} / 2 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 Taken at face value the 7B exhibits an orderly progression: protocol violations dominate across the whole 8-bit to 5-bit plateau, genuine miscalculation at 4-bit, fixation at 3-bit. The 3-bit fixation result is solid (13 of 20 failures single-category, corroborated by trajectory cost below); the protocol result across the 8-bit to 5-bit plateau is priority-dependent, and least determined of all at 6-bit, though Section~\ref{sec:envelope} identifies a concrete mechanism behind it. \textbf{The 11B does not reproduce the progression}: protocol and arithmetic failures interleave across its healthy precisions, its 3-bit protocol failures fall to zero in the cell where labels are most determinate, and its fixation counts never rise the way the 7B's do. \textbf{PLLuM shows a third profile}, and it is where the single-label taxonomy must be read most carefully. Under the as-run priority nearly every PLLuM failure lands in genuine arithmetic (130 of 140 across the whole curve; protocol shape 6, fixation 4), at every precision including 2-bit. That label is priority-dominated: 90 of the 140 carry a wrong final answer together with fixation tags, chiefly \texttt{wrong\_tool\_order}, so a reversed priority would call most of them fixation instead (Appendix~\ref{app:taxonomy}). What survives either reading is the tag-level picture of Section~\ref{sec:setup}: format tags are rare (29 against 74 content tags at 8-bit, the inverse of Bielik), parse fluency is near the 11B's, and the ceiling under maximal format forgiveness is $0.478$. Read either way, PLLuM fails on the task itself, wrong values and wrong call structure, while speaking the protocol, and its 2-bit collapse adds no new signature; it simply removes the few successes there were. That is the third profile: not a different way of breaking under quantization, but the same content failure at every precision, terminated by the shared cliff.
