@@ -1,0 +1,63 @@
+# v3 extended ladder — L0 (zero tools) / instance g (Zakopane).
+# The four values are the verbatim get_forecast(Zakopane, days=4) readings.
+# day2/day4 offsets -0.5/+0.5 cancel -> mean = Zakopane base 2 C EXACTLY
+# -> *9/5+32 = 35.6 F, identical for the exact mean and round(mean, 1).
+# Identical golden (35.6 F) to v3_ext_L0_g / L1_g / L2_g / L3N_g — only scaffolding load differs.
+# Tool block byte-identical to v3_chain_001 (constant schema across rungs).
+id: v3_ext_L0_g
+category: STATEFUL
+environment: weather
+language_variant: PL_EN
+prompt: "Oto prognoza temperatury na 4 dni: 1, 1.5, 2, 2.5°C. Podaj średnią z drugiego i czwartego dnia w °F."
+available_tools:
+  - name: get_weather
+    description: "Get current weather for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+      required: [city]
+  - name: get_forecast
+    description: "Get a multi-day forecast for a city."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        days: {type: integer, minimum: 1, maximum: 7}
+      required: [city, days]
+  - name: send_weather_alert
+    description: "Send a weather alert with a severity level."
+    parameters:
+      type: object
+      properties:
+        city: {type: string}
+        severity: {type: string, enum: [low, medium, high]}
+        message: {type: string}
+      required: [city, severity, message]
+  - name: convert_temperature
+    description: "Convert a temperature between Celsius and Fahrenheit."
+    parameters:
+      type: object
+      properties:
+        value: {type: number}
+        from_unit: {type: string, enum: [celsius, fahrenheit]}
+        to_unit: {type: string, enum: [celsius, fahrenheit]}
+      required: [value, from_unit, to_unit]
+  - name: find_nearest_city
+    description: "List known cities within a radius of a reference city."
+    parameters:
+      type: object
+      properties:
+        reference_city: {type: string}
+        max_distance_km: {type: integer, minimum: 1}
+      required: [reference_city, max_distance_km]
+initial_state_path: states/empty.json
+expected_final_state:
+  no_tool_calls: true
+  final_answer_contains_any: ["35.6", "35,6"]
+  final_answer_used: true
+max_steps: 8
+constraints:
+  - "No tool call should be necessary; average the 2nd and 4th readings and convert C->F directly."
+  - "Average only the 2nd and 4th readings (1.5 and 2.5), not all four."
+  - "Golden is rounding-robust: the day2/day4 mean is exact (2 C), so any 1-dp rounding yields the same 35.6 F."
