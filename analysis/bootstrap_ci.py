@@ -44,6 +44,7 @@ from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.path.insert(0, "src")
+from release_paths import resolve_run_paths  # noqa: E402
 from polagentbench.eval.smoke import SmokeStatus, evaluate  # noqa: E402
 from polagentbench.eval.stats import bootstrap_ci  # noqa: E402
 from polagentbench.io import load_all_tasks  # noqa: E402
@@ -112,10 +113,10 @@ MODELE = ["bielik-11b-v3", "bielik-minitron-7b-v3", "llama-pllum-8b"]
 TASKS = {t.id: t for t in load_all_tasks(Path("tasks/adversarial"))}
 
 
-def werdykty_z_run_log(katalog):
+def werdykty_z_run_log(run_log):
     """Oracle z run.log. Format wiersza: '<task_id> <znak> <slad> [- tagi]'."""
     verd = {}
-    with open(f"{katalog}/run.log", encoding="utf-8") as fh:
+    with open(run_log, encoding="utf-8") as fh:
         for ln in fh:
             m = re.match(r"^(\S+)\s+([✓✗?])\s+(.*)$", ln.rstrip("\n"))
             if m:
@@ -123,10 +124,10 @@ def werdykty_z_run_log(katalog):
     return verd
 
 
-def werdykty_odtworzone(katalog):
+def werdykty_odtworzone(trajectories):
     """Oracle odtworzony kodem repo: eval.smoke.evaluate na kazdej trajektorii."""
     verd = {}
-    with open(f"{katalog}/trajectories.jsonl", encoding="utf-8") as fh:
+    with open(trajectories, encoding="utf-8") as fh:
         for ln in fh:
             tr = Trajectory.model_validate(json.loads(ln))
             sr = evaluate(TASKS[tr.task_id], tr)
@@ -136,13 +137,14 @@ def werdykty_odtworzone(katalog):
 
 def wektor_komorki(katalog):
     """Zwraca (wektor 0/1 posortowany po task_id, zrodlo werdyktow, num_passed z summary)."""
-    if Path(f"{katalog}/run.log").exists():
-        verd = werdykty_z_run_log(katalog)
+    paths = resolve_run_paths(katalog)
+    if paths.run_log is not None:
+        verd = werdykty_z_run_log(paths.run_log)
         zrodlo = "run.log"
     else:
-        verd = werdykty_odtworzone(katalog)
+        verd = werdykty_odtworzone(paths.trajectories)
         zrodlo = "odtworzone (eval.smoke)"
-    with open(f"{katalog}/summary.json", encoding="utf-8") as fh:
+    with open(paths.summary, encoding="utf-8") as fh:
         num_passed = json.load(fh)["num_passed"]
     wektor = [verd[tid] for tid in sorted(verd)]
     return wektor, zrodlo, num_passed

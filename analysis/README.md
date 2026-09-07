@@ -17,6 +17,11 @@ cd <katalog główny repo>
 co również zakłada uruchomienie z góry. Wymagany interpreter to `.venv/Scripts/python.exe`;
 systemowy Python nie ma `pydantic` ani `pyyaml`.
 
+Skrypty `bootstrap_ci.py` i `ladder_typing_tolerant.py` korzystają z `release_paths.py`, więc
+z czystego klona czytają dane z `release_data/`. Uruchom je z katalogu głównego repo poleceniami
+`.venv/Scripts/python.exe -B analysis/bootstrap_ci.py` oraz
+`.venv/Scripts/python.exe -B analysis/ladder_typing_tolerant.py`.
+
 **Uwaga o danych:** `results/` jest w `.gitignore` (linia 55), więc surowe dane **nie są
 w tym repo**. Bez nich skrypty nie mają czego czytać. Kopia danych żyje osobno — patrz
 release `backup-20260821`.

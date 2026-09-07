@@ -19,6 +19,7 @@ Uruchamiac z katalogu glownego repo:
   .venv/Scripts/python.exe analysis/ladder_typing_tolerant.py
 """
 import json, re, sys, glob, yaml, collections
+from release_paths import resolve_run_paths
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 GOLD={}
 for f in glob.glob("tasks/ladder_ext/v3_ext_*.yaml"):
@@ -45,9 +46,9 @@ def json_objects(text):
                     except Exception: pass
                     start=None
     return out
-def verdicts(run):
+def verdicts(run_log):
     v={}
-    for ln in open(f"{run}/run.log",encoding="utf-8"):
+    for ln in open(run_log,encoding="utf-8"):
         m=re.match(r"^(\S+)\s+([✓✗?])\s+(.*)$",ln.rstrip("\n"))
         if m:
             tail=m.group(3); tg=set()
@@ -82,8 +83,9 @@ hdr=f"{'model':<12}{'kwant':<9}"+"".join(f"{r:>18}" for r in RUNGS)+f"{'RAZEM':>
 print(hdr); print("-"*len(hdr))
 TOT={}
 for model,quant,run in RUNS:
-    v=verdicts(run)
-    trajs={t["task_id"]:t for t in (json.loads(l) for l in open(f"{run}/trajectories.jsonl",encoding="utf-8"))}
+    paths=resolve_run_paths(run)
+    v=verdicts(paths.run_log)
+    trajs={t["task_id"]:t for t in (json.loads(l) for l in open(paths.trajectories,encoding="utf-8"))}
     per={r:[0,0,0] for r in RUNGS}   # [strict_pass, forgiven, total]
     for tid,(st,tg) in v.items():
         r=rung(tid)
@@ -105,8 +107,9 @@ print("Podsumowanie L3N — trzy raty obok siebie:")
 print(f"{'model':<12}{'kwant':<9}{'scisla':>12}{'tolerancyjna SKROT':>22}{'tolerancyjna TYPOWANIE':>26}")
 print("-"*81)
 for model,quant,run in RUNS:
-    v=verdicts(run)
-    trajs={t["task_id"]:t for t in (json.loads(l) for l in open(f"{run}/trajectories.jsonl",encoding="utf-8"))}
+    paths=resolve_run_paths(run)
+    v=verdicts(paths.run_log)
+    trajs={t["task_id"]:t for t in (json.loads(l) for l in open(paths.trajectories,encoding="utf-8"))}
     p=fg=0
     for tid,(st,tg) in v.items():
         if rung(tid)!="L3N": continue
@@ -130,8 +133,9 @@ print("Spis porazek CZYSTO FORMATOWYCH (tagi niepuste i zawarte w FMT_ONLY) po o
 print("oraz powod, dla ktorego korekta ich NIE kredytuje:")
 _fmt=_cred=_no_val=_is_str=_no_gold=0
 for model,quant,run in RUNS:
-    v=verdicts(run)
-    trajs={t["task_id"]:t for t in (json.loads(l) for l in open(f"{run}/trajectories.jsonl",encoding="utf-8"))}
+    paths=resolve_run_paths(run)
+    v=verdicts(paths.run_log)
+    trajs={t["task_id"]:t for t in (json.loads(l) for l in open(paths.trajectories,encoding="utf-8"))}
     for tid,(st,tg) in v.items():
         if rung(tid) is None or st=="PASS": continue
         if not (tg and tg<=FMT_ONLY): continue
