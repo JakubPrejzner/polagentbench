@@ -95,10 +95,17 @@ setup() {
   cd "$REPO_ROOT" || stop "repo missing at $REPO_ROOT"
   note "=== SETUP ==="
   uv venv --python 3.12 .venv >/dev/null 2>&1 || stop "uv venv failed"
-  # prebuilt cu124 wheel first (as in the original run), then the project on top of it
-  uv pip install --python "$PY" --index-url "$WHL_INDEX" --extra-index-url https://pypi.org/simple "llama-cpp-python==0.3.19" || stop "wheel install failed"
+  # prebuilt cu124 wheel first (as in the original run), then the project on top of it.
+  # Installing via --index-url resolved to the CPU build on this box (no libggml-cuda.so, gpu_offload False),
+  # so the wheel is fetched by its exact URL from the cu124 index, hashed, and installed with --no-deps.
   uv pip install --python "$PY" -e . huggingface_hub pytest || stop "project install failed"
+  mkdir -p /workspace/wheels
+  WHL_URL="https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.19-cu124/llama_cpp_python-0.3.19-cp312-cp312-linux_x86_64.whl"
+  WHL=/workspace/wheels/llama_cpp_python-0.3.19-cp312-cp312-linux_x86_64.whl
+  [ -f "$WHL" ] || curl -sL -o "$WHL" "$WHL_URL" || stop "wheel download failed"
+  uv pip install --python "$PY" --force-reinstall --no-deps "$WHL" || stop "wheel install failed"
   "$PY" -c "import llama_cpp; print('llama_cpp', llama_cpp.__version__, 'gpu_offload', llama_cpp.llama_supports_gpu_offload())" | tee -a "$LOG"
+  "$PY" -c "import llama_cpp,sys; sys.exit(0 if llama_cpp.llama_supports_gpu_offload() else 1)" || stop "wheel has no GPU offload"
   {
     echo "date: $(date -u +%FT%TZ)"
     echo "repo: $(cat "$REPO_ROOT/RELEASE_COMMIT.txt" 2>/dev/null || echo 'see FIX_REPORT')"
