@@ -1,0 +1,69 @@
+L0e rerun manifest (audit 2026-09-07, step 1) — PolAgentBench, branch fix/audit-2026-09-07
+==========================================================================================
+
+WHAT WAS RUN
+  16 runs x 10 tasks on one Vast.ai RTX 4090 instance, 2026-09-07 18:35–18:48 UTC:
+    8 x tasks/ladder_l0e         (L0e: original L0 tasks with the sentence
+                                  "Nie używaj żadnych narzędzi. Odpowiedz bezpośrednio." prepended to the prompt)
+    8 x tasks/ladder_l0_control  (L0 control: byte-identical copies of tasks/ladder_ext/v3_ext_L0_{a..j}.yaml,
+                                  run right after the same model load, to separate prompt effect from box effect)
+  cells: bielik-11b-v3 {Q8_0, Q4_K_M} x repair {off, on}; bielik-minitron-7b-v3 {Q8_0, Q4_K_M} x repair {off, on}
+  CLI: python -m polagentbench.cli run-suite --seeds 42 --temperature 0.0 --n-ctx 8192 --chat-format chatml
+       [--repair]; top_p 1.0 and max_tokens 512 are the CLI defaults (unchanged from the original runs).
+  runner, oracle, tasks/ladder_ext: unchanged (git diff 56607b6..fd1210c -- src tasks is empty; 56607b6 is the
+  released commit of the original run's e584b38); the branch only adds tasks/ladder_l0e, tasks/ladder_l0_control,
+  runs/, analysis/release_paths.py, analysis/l0e_analysis.py and the Table 3 layout fix.
+
+RELATION TO THE ORIGINAL L0 MATRIX (release_data, run of 2026-07-29)
+  The original extended-ladder run covered 14 model x precision cells, each at repair off and on:
+    bielik-11b-v3          Q8_0 Q4_K_M Q3_K_M Q2_K
+    bielik-minitron-7b-v3  Q8_0 Q4_K_M Q3_K_M Q2_K      (Q3_K_M, Q2_K requantized on the box from Q8_0)
+    llama-pllum-8b         Q8_0 Q6_K Q5_K_M Q4_K_M Q3_K_M Q2_K
+  This rerun covers 4 of those 14 cells (8 of 28 runs), i.e. a SUBSET, not the full matrix:
+    - 7B Q3_K_M and Q2_K dropped: the July GGUF files were produced on the box by llama-quantize and deleted,
+      no sha256 and no quantizer build commit were recorded, so they cannot be rebuilt bit for bit
+      (author decision 2026-09-07: no requantization; to be stated in Reproducibility).
+    - 11B Q3_K_M, Q2_K and all PLLuM cells dropped by the author's scope decision of 2026-09-07
+      (reproducible files, but outside the approved rerun).
+  The four rerun cells are exactly the cells on which the paper's Finding 3 contrasts at 8-bit and 4-bit rest.
+
+ENVIRONMENT, ORIGINAL (release_data/NIGHT_LOG.txt, 2026-07-29) vs RERUN (data/L0e_2026-09/ENV.txt)
+  GPU                 RTX 4090 24564 MiB                     RTX 4090 24564 MiB
+  driver / CUDA       560.35.03 / 12.6                        570.211.01 / 12.8
+  kernel              (not recorded)                          6.8.0-79-generic
+  python              3.12 (venv)                             3.12.3 (uv venv)
+  llama-cpp-python    0.3.19, "prebuilt cu124 wheel"          0.3.19, cu124 wheel, cp312-linux_x86_64, from
+                      + nvidia-cu12 libs; wheel sha256        https://github.com/abetlen/llama-cpp-python/releases/
+                      NOT recorded                            download/v0.3.19-cu124/llama_cpp_python-0.3.19-cp312-cp312-linux_x86_64.whl
+                                                              sha256 69d3bd423fd4e770032d817a35196a2fd520c70dbf8c0b4f778c72e1a97d1702
+                                                              (installed --no-deps; CUDA runtime from the box, libcudart.so.12 / libcublas.so.12 of CUDA 12.8)
+  llama.cpp           vendored in llama-cpp-python 0.3.19:    same wheel version, same vendored commit
+                      c0159f9c1f874da15e94f371d136f5920b4b5335
+  gpu offload         full (gpu_offload=True)                 full (llama_supports_gpu_offload() = True, checked by the script)
+  tests               pytest 204 passed                       pytest 204 passed (data/L0e_2026-09/pytest.txt)
+  Same version string on both sides; whether the wheel bytes were identical cannot be asserted (original hash
+  unrecorded). Empirically the L0 control reproduced all 80 original trajectories byte for byte in raw_model_output.
+  Note: data/L0e_2026-09/L0E_LOG.txt keeps the line "llama_cpp 0.3.19 gpu_offload False" from the first setup pass,
+  when the index-based install had resolved to the CPU wheel; the wheel was replaced by the URL install above
+  (ENV.txt lines "llama-cpp-python wheel", "wheel sha256", "gpu_offload True") an hour before the runs started.
+
+GGUF FILES (sha256 verified after download against Hugging Face LFS metadata; data/L0e_2026-09/GGUF_SHA256.txt)
+  e807522649ba4f0fbcb729ea63336e59e515a162f57c7af31ac399c7f3cb4ab1  speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf    (DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF)
+  5b4e4dad195459bb2b40e1dacab6da49a70b8e04248d391987711758654147fa  speakleash.Bielik-11B-v3.0-Instruct.Q4_K_M.gguf  (same repo)
+  8154b315c3637b1bcebe7cb76e30c4219ccb4fae3ec5596eed8bdc14b3b39bd2  minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf   (speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF)
+  0c1475426645924970b9ed1383df1ce89c47b991e7b78ce9a12d3fde94455b16  minitron-Bielik-7B-v3.0-Instruct-GGUF.Q4_K_M.gguf (same repo)
+  These are the same public files the July run downloaded (NIGHT_LOG lines 34, 46, 77, 95); the July run did not
+  record hashes, so identity rests on the HF file names plus the 80/80 trajectory identity of the control.
+
+TASK SETS
+  tasks/ladder_l0e/SHA256SUMS.txt          hashes of the 10 L0e files and of the 10 original L0 files they derive from
+  tasks/ladder_l0_control/SHA256SUMS.txt   hashes of the control copies (equal to the tasks/ladder_ext L0 hashes)
+  Both manifests verified on the box before the run (11/11 OK each).
+
+OUTPUT
+  data/L0e_2026-09.tgz (sha256 18cf927ddfc6ae98193f1a2b64999101c485db649d1f3a71a9336ff2c3f79eec) unpacked to
+  data/L0e_2026-09/<tag>_<repair>/ and data/L0_control_2026-09/<tag>_<repair>/ with run.log, summary.json,
+  trajectories.jsonl; plus ENV.txt, nvidia-smi.txt, pytest.txt, GGUF_SHA256.txt, L0E_LOG.txt.
+  matrices/per_task_L0e.csv, matrices/per_task_L0_control.csv  (release schema; verdicts replayed with
+  polagentbench.eval.smoke.evaluate and required to equal run.log and summary.json, see analysis/l0e_analysis.py)
+  L0E_ANALYSIS.md  (control identity, L0 vs L0e paired, tag distributions, content diagnosis, Finding 3 with L0e, Holm)
