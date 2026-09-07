@@ -1,0 +1,22 @@
+{
+  "model_id": "bielik-11b-v3",
+  "quant": "Q4_K_M",
+  "repair": false,
+  "num_tasks": 10,
+  "num_trajectories": 10,
+  "num_passed": 0,
+  "num_inconclusive": 0,
+  "num_total": 10,
+  "success_rate": 0.0,
+  "repair_applied_steps": 0,
+  "failure_tag_counts": {
+    "unexpected_tool_call": 10,
+    "wrong_final_answer": 5,
+    "final_answer_missing": 2,
+    "invalid_json": 1,
+    "schema_violation": 5,
+    "timeout": 1
+  },
+  "commit_hash": "unknown",
+  "git_ref": "unknown"
+}

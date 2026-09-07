@@ -1,0 +1,16 @@
+llama_context: n_ctx_seq (8192) < n_ctx_train (32768) -- the full capacity of the model will not be utilized
+Smoke test results - bielik-11b-v3 / Q8_0 / seed=42
+============================================================
+v3_ext_L0e_a  ✗  final_answer - wrong_final_answer
+v3_ext_L0e_b  ✗  final_answer - wrong_final_answer
+v3_ext_L0e_c  ✗  final_answer - wrong_final_answer
+v3_ext_L0e_d  ✗  final_answer - wrong_final_answer
+v3_ext_L0e_e  ✗  final_answer - wrong_final_answer
+v3_ext_L0e_f  ✗  final_answer - wrong_final_answer
+v3_ext_L0e_g  ✓  final_answer
+v3_ext_L0e_h  ✗  final_answer - wrong_final_answer
+v3_ext_L0e_i  ✗  final_answer - wrong_final_answer
+v3_ext_L0e_j  ✗  final_answer - wrong_final_answer
+============================================================
+Success: 1/10 (10%)
+Failure tags: {wrong_final_answer: 9}

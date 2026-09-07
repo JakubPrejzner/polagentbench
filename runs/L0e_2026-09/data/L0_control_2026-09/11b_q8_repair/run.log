@@ -1,0 +1,16 @@
+llama_context: n_ctx_seq (8192) < n_ctx_train (32768) -- the full capacity of the model will not be utilized
+Smoke test results - bielik-11b-v3 / Q8_0 / seed=42
+============================================================
+v3_ext_L0_a  ✗  convert_temperature(value=8.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call
+v3_ext_L0_b  ✗  convert_temperature(value=8.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=9.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call
+v3_ext_L0_c  ✗  convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=8, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call, wrong_final_answer
+v3_ext_L0_d  ✗  convert_temperature(value=8.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=9, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call, wrong_final_answer
+v3_ext_L0_e  ✗  convert_temperature(value=8.0, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call
+v3_ext_L0_f  ✗  convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=8, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call, wrong_final_answer
+v3_ext_L0_g  ✗  convert_temperature(value=2.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=1.5, from_unit='celsius', to_unit='fahrenheit') -> parse_error[no_json_found] -> final_answer - unexpected_tool_call, no_json_found
+v3_ext_L0_h  ✗  convert_temperature(value=5.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=6, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call, wrong_final_answer
+v3_ext_L0_i  ✗  convert_temperature(value=5.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=6.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call
+v3_ext_L0_j  ✗  convert_temperature(value=6.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=7, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call, wrong_final_answer
+============================================================
+Success: 0/10 (0%)
+Failure tags: {no_json_found: 1, unexpected_tool_call: 10, wrong_final_answer: 5}

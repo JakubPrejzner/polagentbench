@@ -1,0 +1,59 @@
+[17:26:47] === SETUP ===
+llama_cpp 0.3.19 gpu_offload False
+204 passed in 11.34s
+[17:28:00] === SETUP DONE ===
+[18:35:47] === RUN START | L0e + L0 control | manifests 9a786616940c 1ae8c4105feb ===
+ 1  bielik-11b-v3          Q8_0    L0e    no_repair speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf
+ 2  bielik-11b-v3          Q8_0    L0e    repair    speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf
+ 3  bielik-11b-v3          Q8_0    L0ctl  no_repair speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf
+ 4  bielik-11b-v3          Q8_0    L0ctl  repair    speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf
+ 5  bielik-11b-v3          Q4_K_M  L0e    no_repair speakleash.Bielik-11B-v3.0-Instruct.Q4_K_M.gguf
+ 6  bielik-11b-v3          Q4_K_M  L0e    repair    speakleash.Bielik-11B-v3.0-Instruct.Q4_K_M.gguf
+ 7  bielik-11b-v3          Q4_K_M  L0ctl  no_repair speakleash.Bielik-11B-v3.0-Instruct.Q4_K_M.gguf
+ 8  bielik-11b-v3          Q4_K_M  L0ctl  repair    speakleash.Bielik-11B-v3.0-Instruct.Q4_K_M.gguf
+ 9  bielik-minitron-7b-v3  Q8_0    L0e    no_repair minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf
+10  bielik-minitron-7b-v3  Q8_0    L0e    repair    minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf
+11  bielik-minitron-7b-v3  Q8_0    L0ctl  no_repair minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf
+12  bielik-minitron-7b-v3  Q8_0    L0ctl  repair    minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf
+13  bielik-minitron-7b-v3  Q4_K_M  L0e    no_repair minitron-Bielik-7B-v3.0-Instruct-GGUF.Q4_K_M.gguf
+14  bielik-minitron-7b-v3  Q4_K_M  L0e    repair    minitron-Bielik-7B-v3.0-Instruct-GGUF.Q4_K_M.gguf
+15  bielik-minitron-7b-v3  Q4_K_M  L0ctl  no_repair minitron-Bielik-7B-v3.0-Instruct-GGUF.Q4_K_M.gguf
+16  bielik-minitron-7b-v3  Q4_K_M  L0ctl  repair    minitron-Bielik-7B-v3.0-Instruct-GGUF.Q4_K_M.gguf
+total runs: 16  (8 x tasks/ladder_l0e + 8 x tasks/ladder_l0_control, 10 tasks each)
+[18:35:47] disk check | need 14 GB for speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf | free 25 GB
+[18:35:47] download | DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF | speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf
+[18:36:38] sha256 OK | speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf | e807522649ba4f0fbcb729ea63336e59e515a162f57c7af31ac399c7f3cb4ab1 (matches HF LFS)
+overlay          32G   19G   14G  58% /
+[18:36:50] DONE | bielik-11b-v3 | Q8_0 | tasks/ladder_l0e | no_repair | 1 / 10 | 12s
+[18:37:01] DONE | bielik-11b-v3 | Q8_0 | tasks/ladder_l0e | repair | 1 / 10 | 11s
+[18:37:26] DONE | bielik-11b-v3 | Q8_0 | tasks/ladder_l0_control | no_repair | 0 / 10 | 25s
+[18:37:51] DONE | bielik-11b-v3 | Q8_0 | tasks/ladder_l0_control | repair | 0 / 10 | 25s
+[18:37:51] delete model | speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf
+[18:37:51] disk check | need 9 GB for speakleash.Bielik-11B-v3.0-Instruct.Q4_K_M.gguf | free 25 GB
+[18:37:51] download | DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF | speakleash.Bielik-11B-v3.0-Instruct.Q4_K_M.gguf
+[18:38:31] sha256 OK | speakleash.Bielik-11B-v3.0-Instruct.Q4_K_M.gguf | 5b4e4dad195459bb2b40e1dacab6da49a70b8e04248d391987711758654147fa (matches HF LFS)
+overlay          32G   14G   19G  43% /
+[18:39:37] DONE | bielik-11b-v3 | Q4_K_M | tasks/ladder_l0e | no_repair | 0 / 10 | 66s
+[18:40:46] DONE | bielik-11b-v3 | Q4_K_M | tasks/ladder_l0e | repair | 0 / 10 | 69s
+[18:41:06] DONE | bielik-11b-v3 | Q4_K_M | tasks/ladder_l0_control | no_repair | 0 / 10 | 20s
+[18:41:27] DONE | bielik-11b-v3 | Q4_K_M | tasks/ladder_l0_control | repair | 0 / 10 | 21s
+[18:41:27] delete model | speakleash.Bielik-11B-v3.0-Instruct.Q4_K_M.gguf
+[18:41:27] disk check | need 10 GB for minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf | free 25 GB
+[18:41:27] download | speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF | minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf
+[18:41:55] sha256 OK | minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf | 8154b315c3637b1bcebe7cb76e30c4219ccb4fae3ec5596eed8bdc14b3b39bd2 (matches HF LFS)
+overlay          32G   15G   18G  46% /
+[18:42:24] DONE | bielik-minitron-7b-v3 | Q8_0 | tasks/ladder_l0e | no_repair | 0 / 10 | 29s
+[18:42:53] DONE | bielik-minitron-7b-v3 | Q8_0 | tasks/ladder_l0e | repair | 0 / 10 | 29s
+[18:44:24] DONE | bielik-minitron-7b-v3 | Q8_0 | tasks/ladder_l0_control | no_repair | 0 / 10 | 91s
+[18:45:02] DONE | bielik-minitron-7b-v3 | Q8_0 | tasks/ladder_l0_control | repair | 0 / 10 | 38s
+[18:45:02] delete model | minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf
+[18:45:02] disk check | need 7 GB for minitron-Bielik-7B-v3.0-Instruct-GGUF.Q4_K_M.gguf | free 25 GB
+[18:45:03] download | speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF | minitron-Bielik-7B-v3.0-Instruct-GGUF.Q4_K_M.gguf
+[18:45:19] sha256 OK | minitron-Bielik-7B-v3.0-Instruct-GGUF.Q4_K_M.gguf | 0c1475426645924970b9ed1383df1ce89c47b991e7b78ce9a12d3fde94455b16 (matches HF LFS)
+overlay          32G   12G   21G  36% /
+[18:45:51] DONE | bielik-minitron-7b-v3 | Q4_K_M | tasks/ladder_l0e | no_repair | 0 / 10 | 32s
+[18:46:02] DONE | bielik-minitron-7b-v3 | Q4_K_M | tasks/ladder_l0e | repair | 0 / 10 | 11s
+[18:47:38] DONE | bielik-minitron-7b-v3 | Q4_K_M | tasks/ladder_l0_control | no_repair | 0 / 10 | 96s
+[18:48:01] DONE | bielik-minitron-7b-v3 | Q4_K_M | tasks/ladder_l0_control | repair | 0 / 10 | 23s
+[18:48:01] delete model | minitron-Bielik-7B-v3.0-Instruct-GGUF.Q4_K_M.gguf
+[18:48:01] === RUN DONE | L0e dirs: 12 | control dirs: 12 ===

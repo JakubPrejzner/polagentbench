@@ -1,0 +1,16 @@
+llama_context: n_ctx_seq (8192) < n_ctx_train (32768) -- the full capacity of the model will not be utilized
+Smoke test results - bielik-11b-v3 / Q4_K_M / seed=42
+============================================================
+v3_ext_L0e_a  ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[no_json_found] -> parse_error[unknown_action] -> parse_error[no_json_found] -> parse_error[no_json_found] -> final_answer - unknown_action, no_json_found
+v3_ext_L0e_b  ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[no_json_found] -> parse_error[unknown_action] -> parse_error[no_json_found] -> parse_error[no_json_found] -> final_answer - unknown_action, no_json_found
+v3_ext_L0e_c  ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] - final_answer_missing, unknown_action, no_json_found
+v3_ext_L0e_d  ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] - final_answer_missing, unknown_action, no_json_found
+v3_ext_L0e_e  ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[no_json_found] -> parse_error[unknown_action] -> parse_error[no_json_found] -> parse_error[no_json_found] -> final_answer - unknown_action, no_json_found
+v3_ext_L0e_f  ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] - final_answer_missing, unknown_action, no_json_found
+v3_ext_L0e_g  ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[no_json_found] -> parse_error[unknown_action] -> parse_error[no_json_found] -> parse_error[unknown_action] -> parse_error[no_json_found] -> parse_error[unknown_action] - final_answer_missing, unknown_action, no_json_found
+v3_ext_L0e_h  ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] - final_answer_missing, unknown_action
+v3_ext_L0e_i  ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] -> parse_error[no_json_found] - final_answer_missing, unknown_action, no_json_found
+v3_ext_L0e_j  ✗  parse_error[no_json_found] -> final_answer - wrong_final_answer, no_json_found
+============================================================
+Success: 0/10 (0%)
+Failure tags: {final_answer_missing: 12, no_json_found: 37, unknown_action: 33, wrong_final_answer: 1}

@@ -1,0 +1,16 @@
+llama_context: n_ctx_seq (8192) < n_ctx_train (32768) -- the full capacity of the model will not be utilized
+Smoke test results - bielik-minitron-7b-v3 / Q4_K_M / seed=42
+=============================================================
+v3_ext_L0e_a  ✗  final_answer - wrong_final_answer
+v3_ext_L0e_b  ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] - final_answer_missing, unknown_action
+v3_ext_L0e_c  ✗  final_answer - wrong_final_answer
+v3_ext_L0e_d  ✗  final_answer - wrong_final_answer
+v3_ext_L0e_e  ✗  final_answer - wrong_final_answer
+v3_ext_L0e_f  ✗  final_answer - wrong_final_answer
+v3_ext_L0e_g  ✗  parse_error[schema_violation] -> parse_error[schema_violation] -> parse_error[schema_violation] -> parse_error[schema_violation] -> parse_error[schema_violation] -> parse_error[schema_violation] -> parse_error[schema_violation] -> parse_error[schema_violation] - final_answer_missing, schema_violation
+v3_ext_L0e_h  ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] - final_answer_missing, unknown_action
+v3_ext_L0e_i  ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] - final_answer_missing, unknown_action
+v3_ext_L0e_j  ✗  parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[unknown_action] - final_answer_missing, unknown_action
+=============================================================
+Success: 0/10 (0%)
+Failure tags: {final_answer_missing: 10, schema_violation: 8, unknown_action: 32, wrong_final_answer: 5}

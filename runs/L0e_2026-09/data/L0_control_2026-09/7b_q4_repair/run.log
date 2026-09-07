@@ -1,0 +1,16 @@
+llama_context: n_ctx_seq (8192) < n_ctx_train (32768) -- the full capacity of the model will not be utilized
+Smoke test results - bielik-minitron-7b-v3 / Q4_K_M / seed=42
+=============================================================
+v3_ext_L0_a  ✗  convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=8.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call
+v3_ext_L0_b  ✗  convert_temperature(value=8.5, from_unit='celsius', to_unit='fahrenheit') -> parse_error[unknown_action] -> final_answer - unexpected_tool_call, wrong_final_answer, unknown_action
+v3_ext_L0_c  ✗  convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=7, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call, wrong_final_answer
+v3_ext_L0_d  ✗  convert_temperature(value=8.5, from_unit='celsius', to_unit='fahrenheit') -> parse_error[unknown_action] -> final_answer - unexpected_tool_call, wrong_final_answer, unknown_action
+v3_ext_L0_e  ✗  convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=8.5, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call
+v3_ext_L0_f  ✗  convert_temperature(value=7.5, from_unit='celsius', to_unit='fahrenheit') -> convert_temperature(value=7, from_unit='celsius', to_unit='fahrenheit') -> final_answer - unexpected_tool_call, wrong_final_answer
+v3_ext_L0_g  ✗  convert_temperature(value=1.5, from_unit='celsius', to_unit='fahrenheit') -> parse_error[unknown_action] -> final_answer - unexpected_tool_call, wrong_final_answer, unknown_action
+v3_ext_L0_h  ✗  convert_temperature(value=5.5, from_unit='celsius', to_unit='fahrenheit') -> parse_error[unknown_action] -> final_answer - unexpected_tool_call, wrong_final_answer, unknown_action
+v3_ext_L0_i  ✗  convert_temperature(value=5.5, from_unit='celsius', to_unit='fahrenheit') -> parse_error[unknown_action] -> final_answer - unexpected_tool_call, wrong_final_answer, unknown_action
+v3_ext_L0_j  ✗  convert_temperature(value=6.5, from_unit='celsius', to_unit='fahrenheit') -> parse_error[unknown_action] -> parse_error[unknown_action] -> parse_error[schema_violation] -> parse_error[schema_violation] -> parse_error[schema_violation] -> parse_error[schema_violation] -> parse_error[schema_violation] - unexpected_tool_call, final_answer_missing, unknown_action, schema_violation
+=============================================================
+Success: 0/10 (0%)
+Failure tags: {final_answer_missing: 2, schema_violation: 5, unexpected_tool_call: 10, unknown_action: 7, wrong_final_answer: 7}

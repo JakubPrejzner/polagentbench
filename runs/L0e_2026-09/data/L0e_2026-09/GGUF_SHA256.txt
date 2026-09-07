@@ -1,0 +1,4 @@
+e807522649ba4f0fbcb729ea63336e59e515a162f57c7af31ac399c7f3cb4ab1  speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf
+5b4e4dad195459bb2b40e1dacab6da49a70b8e04248d391987711758654147fa  speakleash.Bielik-11B-v3.0-Instruct.Q4_K_M.gguf
+8154b315c3637b1bcebe7cb76e30c4219ccb4fae3ec5596eed8bdc14b3b39bd2  minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf
+0c1475426645924970b9ed1383df1ce89c47b991e7b78ce9a12d3fde94455b16  minitron-Bielik-7B-v3.0-Instruct-GGUF.Q4_K_M.gguf
