@@ -1,0 +1,19 @@
+file	hf_repo	sha256	size_gb	note
+speakleash.Bielik-11B-v3.0-Instruct.Q8_0.gguf	DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF	e807522649ba4f0fbcb729ea63336e59e515a162f57c7af31ac399c7f3cb4ab1	11.87	public; HF LFS sha256 read 2026-09-07; verified after download in the 2026-09 rerun
+speakleash.Bielik-11B-v3.0-Instruct.Q6_K.gguf	DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF	8c0e4de3dd492148ef4a98c8a47d438783bb583cc1e1a33962224f150a53b315	9.16	public; HF LFS sha256 read 2026-09-08
+speakleash.Bielik-11B-v3.0-Instruct.Q5_K_M.gguf	DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF	bcef465b4d37414f73615dcebe90ef9983291bb1429acab60eb11d6ac53ea0e8	7.91	public; HF LFS sha256 read 2026-09-08
+speakleash.Bielik-11B-v3.0-Instruct.Q4_K_M.gguf	DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF	5b4e4dad195459bb2b40e1dacab6da49a70b8e04248d391987711758654147fa	6.72	public; verified after download in the 2026-09 rerun
+speakleash.Bielik-11B-v3.0-Instruct.Q3_K_M.gguf	DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF	8389c373139861ab9374b65d9abdcf177aa352e58dbc2ff73b6e267a187ccbe7	5.40	public
+speakleash.Bielik-11B-v3.0-Instruct.Q2_K.gguf	DevQuasar/speakleash.Bielik-11B-v3.0-Instruct-GGUF	891e4c4ee5afa3c3142ce6fb05a780f906822b8fc94a59be3ced4b1bafcd0442	4.16	public
+minitron-Bielik-7B-v3.0-Instruct-GGUF.Q8_0.gguf	speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF	8154b315c3637b1bcebe7cb76e30c4219ccb4fae3ec5596eed8bdc14b3b39bd2	7.95	public; source of the requantized Q3_K_M and Q2_K; verified after download in the 2026-09 rerun
+minitron-Bielik-7B-v3.0-Instruct-GGUF.Q6_K.gguf	speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF	1abaa53ac3a89a8b5e9e00eb0c46409de3925b601cf4ea4c5392ab067778550b	6.14	public
+minitron-Bielik-7B-v3.0-Instruct-GGUF.Q5_K_M.gguf	speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF	b7e5830daf299de38b69744f96f80b45c9ec7f2d68404183d2eb0637e8d62c8e	5.29	public
+minitron-Bielik-7B-v3.0-Instruct-GGUF.Q4_K_M.gguf	speakleash/Bielik-Minitron-7B-v3.0-Instruct-GGUF	0c1475426645924970b9ed1383df1ce89c47b991e7b78ce9a12d3fde94455b16	4.50	public; verified after download in the 2026-09 rerun
+minitron-Bielik-7B-v3.0-Instruct-GGUF.Q3_K_M.gguf	(requantized on the box, 2026-07-29)	NOT RECORDED	3.4	llama-quantize --allow-requantize <Q8_0.gguf> <out.gguf> Q3_K_M, CPU-only llama.cpp build (-DGGML_CUDA=OFF -DLLAMA_CURL=OFF), commit not recorded; file deleted after the run; not reproducible bit for bit
+minitron-Bielik-7B-v3.0-Instruct-GGUF.Q2_K.gguf	(requantized on the box, 2026-07-29)	NOT RECORDED	2.7	llama-quantize --allow-requantize <Q8_0.gguf> <out.gguf> Q2_K, same build; file deleted after the run; not reproducible bit for bit
+Llama-PLLuM-8B-instruct.Q8_0.gguf	mradermacher/Llama-PLLuM-8B-instruct-GGUF	b8b2ae9e7323db5e968d73c191c677459c7e6a8952ec21d200db427a5a37b5cc	8.54	public
+Llama-PLLuM-8B-instruct.Q6_K.gguf	mradermacher/Llama-PLLuM-8B-instruct-GGUF	6ac35744dd5c1ea594cf12b1daf601a09dd4e59e7e6df0bf635e5bc4af886617	6.60	public
+Llama-PLLuM-8B-instruct.Q5_K_M.gguf	mradermacher/Llama-PLLuM-8B-instruct-GGUF	921278b4386b39bf927a79c59b79b6007c62c4afb4ad12e2ef231e63c7b81fda	5.73	public
+Llama-PLLuM-8B-instruct.Q4_K_M.gguf	mradermacher/Llama-PLLuM-8B-instruct-GGUF	4ae92e8e4a0cad1f32dc2baf706581267597aa83811b9dc1d6c6437b1695d28c	4.92	public
+Llama-PLLuM-8B-instruct.Q3_K_M.gguf	mradermacher/Llama-PLLuM-8B-instruct-GGUF	aa34a5b0a2972feb6c9608a75c885630adff3f54676e6b1c7c2bd530e01329a1	4.02	public
+Llama-PLLuM-8B-instruct.Q2_K.gguf	mradermacher/Llama-PLLuM-8B-instruct-GGUF	9ba65b322fc6b3430a34fdaa092e134da5b4b37cb896d6eb3e5d37bdf1473274	3.18	public
