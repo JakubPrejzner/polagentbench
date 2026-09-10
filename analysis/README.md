@@ -1,15 +1,15 @@
 # analysis/ — skrypty odtwarzające tabele do papera
 
-Skrypty diagnostyczne, każdy **wyłącznie do odczytu**: czytają `results/**/run.log`,
-`results/**/trajectories.jsonl`, `results/**/summary.json` i `tasks/**/*.yaml`, nic nie zapisują
-i nic nie modyfikują. Żaden nie potrzebuje GPU ani sieci — wszystkie liczby powstają z danych,
-które już leżą na dysku.
+Większość skryptów diagnostycznych **wyłącznie czyta dane** z `release_data/`, `results/`,
+`runs/` i `tasks/`. Wyjątki: `gen_release_data.py` usuwa i odtwarza `release_data/`,
+a `l0e_analysis.py` nadpisuje macierze oraz raport `runs/L0e_2026-09/L0E_ANALYSIS.md`.
+Żaden nie potrzebuje GPU ani sieci — liczby powstają z danych na dysku.
 
 ## Uruchamianie
 
 ```
 cd <katalog główny repo>
-.venv/Scripts/python.exe analysis/<skrypt>.py
+.venv/Scripts/python.exe -B analysis/<skrypt>.py
 ```
 
 Ścieżki w skryptach są **względne wobec katalogu głównego repo** — uruchomienie z wnętrza
@@ -18,13 +18,34 @@ co również zakłada uruchomienie z góry. Wymagany interpreter to `.venv/Scrip
 systemowy Python nie ma `pydantic` ani `pyyaml`.
 
 Skrypty `bootstrap_ci.py` i `ladder_typing_tolerant.py` korzystają z `release_paths.py`, więc
-z czystego klona czytają dane z `release_data/`. Uruchom je z katalogu głównego repo poleceniami
-`.venv/Scripts/python.exe -B analysis/bootstrap_ci.py` oraz
-`.venv/Scripts/python.exe -B analysis/ladder_typing_tolerant.py`.
+z czystego klona czytają dane z `release_data/`. `pllum_ceiling.py` czyta bezpośrednio
+`release_data/matrices/per_task_main67.csv`, wybierając werdykty oracle dla `main67`,
+Q8_0 i repair=off. Uruchomienie: `.venv/Scripts/python.exe -B analysis/pllum_ceiling.py`.
+Jego podział porażek i wydruk są identyczne z wersją czytającą historyczne logi i macierz.
 
-**Uwaga o danych:** `results/` jest w `.gitignore` (linia 55), więc surowe dane **nie są
-w tym repo**. Bez nich skrypty nie mają czego czytać. Kopia danych żyje osobno — patrz
-release `backup-20260821`.
+**Uwaga o danych:** historyczny układ `results/` jest ignorowany przez git. Opublikowane
+trajektorie, logi, podsumowania i macierze są w `release_data/`, a rerun i kontrola L0
+w `runs/L0e_2026-09/`. Część starszych skryptów nadal wymaga odtworzenia układu `results/`
+z archiwum `backup-20260821`; samo istnienie opublikowanych danych im nie wystarcza.
+
+### Sprawdzenie z czystego checkoutu bez `results/`
+
+Każdy skrypt uruchomiono interpreterem repo z `-B`, z katalogiem czystego checkoutu jako
+katalogiem roboczym i bezwzględną ścieżką do skryptu. Dla generatorów operacje zapisu,
+usuwania i tworzenia katalogów zastąpiono operacjami w pamięci; pozostałe zapisy blokowano.
+Checkout i opublikowane dane nie zostały zmienione.
+
+| wynik | skrypty |
+|---|---|
+| Działają z `release_data/` | `bootstrap_ci.py`, `ladder_typing_tolerant.py`, `mode_tables.py`, `pllum_ceiling.py` |
+| Działają z samych definicji zadań | `ladder_rungs.py`, `task_scope.py` |
+| Działa z opublikowanym rerunem; normalnie zapisuje macierze i raport | `l0e_analysis.py` |
+| Moduły pomocnicze, bez samodzielnego raportu | `failure_classifier.py`, `release_paths.py` |
+| Wymagają `results/`; kończą się błędem braku pliku lub katalogu | `attractor59_cases.py`, `envelope_marginals.py`, `envelope_positions.py`, `gen_release_data.py`, `ladder_breakdown.py`, `ladder_controls.py`, `ladder_nearmiss.py`, `ladder_pllum_rungs.py`, `pllum_patterns.py`, `pllum_raw_dump.py`, `pllum_vs_bielik.py`, `q4dip_classify.py`, `q4dip_deep_ceiling.py`, `q4dip_depth.py`, `q4dip_group.py`, `success_flag_gap.py`, `variance_classify.py`, `variance_rates.py`, `variance_repetition.py`, `variance_seed_config.py` |
+| Nadal wymagają `results/`, choć bez niego kończą się kodem sukcesu z pustymi wynikami trajektorii | `inventory.py`, `attractor59_count.py`, `attractor59_direction.py`, `attractor59_scan_raw.py`, `attractor59_negative_controls.py` (kontrole zadań i kodu działają, część trajektorii jest pusta) |
+
+Starszych skryptów z ostatnich dwóch wierszy nie dostosowano do układu release. Kod sukcesu
+przy pustym wyniku nie oznacza odtworzenia analizy.
 
 ## Mapa: skrypt → tabela / finding
 
@@ -46,30 +67,34 @@ na niewłaściwym runie.
 | `pllum_vs_bielik.py` | Analiza 1, TABELA 1a i TABELA 1c | rozkład tagów odwrócony: PLLuM 74 TREŚĆ / 29 FORMAT, Bielik 15 / 43 |
 | `pllum_ceiling.py` | Analiza 1, TABELA 1d | **sufit hojny 32/67 = 0.478** < faktyczne 0.806 Bielika; 35 z 54 porażek bez błędu formatu |
 
-**Finding:** to nie jest zepsuty szablon. Nawet przy darowaniu każdej porażki dotkniętej błędem
-składni PLLuM nie dociąga do Bielika.
+**Finding:** opisane kontrole nie wykazały usterki harnessu. Nawet przy darowaniu każdej
+porażki z tagiem formatu sufit PLLuM pozostaje poniżej wyniku Bielika; taki sufit nie jest
+odzyskaną skutecznością ani wykluczeniem wszystkich niedopasowań promptu.
 
 ### Wariancja seedów: dwumodalność przy T=0.7
 
 | skrypt | produkuje | kluczowa liczba |
 |---|---|---|
 | `variance_seed_config.py` | Analiza 2, TABELA 2a i 2b | seed jest w rekordach trajektorii (1/2/3, T=0.7), choć w `summary.json` jest `None`; seed1 wyprodukował **więcej** tekstu i pracował **dłużej** niż seed2 |
-| `variance_classify.py` | Analiza 2, TABELA 2c | seed1 po darowaniu kaskad: **0.776 (Q8)** i **0.881 (Q3)** — pasmo seedów 2 i 3 |
+| `variance_classify.py` | Analiza 2, TABELA 2c | sufity seed1 przy darowaniu wszystkich porażek z tagiem formatu: **0.776 (Q8)** i **0.881 (Q3)**; poniżej analogicznych sufitów seedów 2 i 3 na Q8, w ich paśmie na Q3 |
 | `variance_repetition.py` | Analiza 2, TABELA 2d + cytaty 2c | hipoteza „zaklinowany sampler" **obalona**: najwięcej powtórzeń ma seed3 (13,7%), który punktuje najlepiej |
 
-**Finding:** zapaść seed=1 to utrata dyscypliny koperty, nie utrata zdolności — treść odpowiedzi
-bywa identyczna z tą, którą seed2 zalicza.
+**Finding:** zapaść seed=1 wiąże się z porażkami z tagami formatu. Darowanie wyłącznie
+porażek czysto formatowych daje 22/67 i 30/67. Sufity dopuszczające porażki mieszane, ale
+wykluczające `wrong_final_answer`, wynoszą 0.687 i 0.746 i pozostają poniżej analogicznych
+sufitów pozostałych seedów. Te granice nie ustalają, czy format degraduje się przed rozumowaniem.
 
 ### Drabina: rozbicie na szczeble
 
 | skrypt | produkuje | kluczowa liczba |
 |---|---|---|
-| `ladder_rungs.py` | Analiza 3, opis szczebli | L0 **zabrania** wywołań narzędzi; L3N wymaga **dwóch** konwersji |
+| `ladder_rungs.py` | Analiza 3, opis szczebli | oracle L0 **zabrania** wywołań narzędzi, ale oryginalny prompt tego nie mówił; L3N wymaga **dwóch** konwersji |
 | `ladder_breakdown.py` | Analiza 3, TABELA 1 i TABELA 2 | **SKRÓT = 0 w 80 zadaniach L3N** → rata tolerancyjna = ścisła |
 | `ladder_pllum_rungs.py` | `paper/tables/ladder.tex`, sześć wierszy PLLuM | całe **2 zaliczenia PLLuM na drabinie**: Q8_0 na L0 (`v3_ext_L0_c`, `v3_ext_L0_f`), pięć niższych kwantów **0/46** |
 | `ladder_nearmiss.py` | Analiza 3, blok „Dlaczego SKRÓT jest pusty" | poprawny łańcuch + poprawny golden, odrzucone na **typie** pola `answer` (float w 11B, dict w 7B) |
 | `ladder_typing_tolerant.py` | Analiza 3, TABELA 3 | L3N na 11B Q8: **0.20 → 0.90**; na 7B Q8: 0.00 → 0.70 |
 | `ladder_controls.py` | Analiza 3, kontrola + przyczyny L0 | L1/L2 **nie** darowane, bo golden nieobecny (59 zamiast 46.4); L0 = 0.00 ma dwie różne przyczyny |
+| `l0e_analysis.py` | rerun L0e i kontrola L0; zapis macierzy i raportu | L0e: 11B Q8_0 **1/10**, pozostałe komórki **0/10**; kontrola **80/80** zgodna w raw output, tokenach i werdyktach |
 
 **Finding:** przewidywany SKRÓT nie istnieje. Bliskie porażki L3N to wyłącznie typowanie pola
 `answer`. `ladder_controls.py` jest kontrolą, że tolerancja nie rozdaje darmowych punktów.
@@ -115,13 +140,16 @@ nie efektem głębokości łańcucha. U Bielika-7B żadna z dwóch zmiennych nie
 |---|---|---|
 | `mode_tables.py` | cztery tabele naraz: `tab:purity`, `tab:modes`, `tab:tokens`, `tab:tokens-full` — 18 komórek `main67` (repair=off) | artefakt zaokrągleniowy pada **dokładnie raz w całej siatce**, na 7B `Q5_K_M`; komórka 7B `Q6_K` ma **0 z 21 porażek jednokategoryjnych**, czyli jest najmniej rozstrzygniętą etykietą w Tab. 1 |
 
-Jedyny skrypt w tym katalogu, który czyta **`release_data/`, nie `results/`** — działa więc
+Ten skrypt czyta **`release_data/`, nie `results/`** — działa więc
 z samego klona repo, bez surowych katalogów runów. Werdykty wyłącznie z oracle'a
 (`eval.smoke.evaluate`), etykiety z `failure_classifier.py`. Ma wbudowaną bramkę: 36 komórek
 opublikowanych w paperze jest wpisanych ręcznie w `PUBLISHED_MODES` / `PUBLISHED_TOKENS`,
 skrypt porównuje się z nimi i kończy kodem 1 przy jakimkolwiek rozjeździe. Komórki 7B `Q6_K`
 i `Q5_K_M` (oznaczone `NOWA`) zostały dopisane do papera tym skryptem, po tym jak przeszedł
 bramkę na wszystkich pozostałych.
+
+Wydruk tokenów tego historycznego skryptu zaokrągla mediany do liczb całkowitych;
+paper zachowuje dokładne mediany kończące się na .5. Reguły obliczeń skryptu pozostawiono bez zmian.
 
 Pułapka wyboru runów: w `runs.csv` sześć runów `v3_11b_variance_*` ma ten sam `model_id`,
 `quant`, `suite` i `repair` co komórki 11B `Q8_0` i `Q3_K_M`, a jest to sonda wariancji przy

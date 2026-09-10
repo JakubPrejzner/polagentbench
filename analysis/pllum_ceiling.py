@@ -10,16 +10,16 @@ wynosi 32/67 = 0.478, ponizej faktycznego 0.806 Bielika. 35 z 54 porazek PLLuM n
 bledu formatu w ogole.
 
 CZYTA Z:
-  jak w pllum_vs_bielik.py
+  release_data/matrices/per_task_main67.csv (main67, Q8_0, repair=off; werdykty oracle)
 
 PRODUKUJE:
   Sesja 2, Analiza 1: TABELA 1d.
 
 TYLKO ODCZYT - skrypt niczego nie zapisuje ani nie modyfikuje.
 Uruchamiac z katalogu glownego repo:
-  .venv/Scripts/python.exe analysis/pllum_ceiling.py
+  .venv/Scripts/python.exe -B analysis/pllum_ceiling.py
 """
-import json, re, sys, csv
+import sys, csv
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 FORMAT = {"unknown_action","no_json_found","invalid_json","schema_violation",
@@ -28,18 +28,22 @@ CONTENT= {"wrong_final_answer","wrong_tool_order","expected_tool_not_called",
           "unexpected_tool_call","unauthorized_side_effect","hallucinated_tool_result",
           "tool_call_failed","timeout"}
 
+def released_verdicts(model_id):
+    with open("release_data/matrices/per_task_main67.csv", encoding="utf-8") as fh:
+        return {
+            r["task_id"]: (
+                "PASS" if r["passed"] == "1" else "FAIL",
+                {t for t in r["failure_tags"].split(";") if t},
+            )
+            for r in csv.DictReader(fh)
+            if r["model_id"] == model_id and r["suite"] == "main67"
+            and r["quant"] == "Q8_0" and r["repair"] == "off"
+        }
+
 def pv():
-    v={}
-    for ln in open("results/v3_pllum_2026-07-29/q8_main_no_repair/run.log",encoding="utf-8"):
-        m=re.match(r"^(\S+)\s+([✓✗?])\s+(.*)$",ln.rstrip("\n"))
-        if m:
-            tail=m.group(3); tags=set()
-            if " - " in tail: tags={t.strip() for t in tail.rsplit(" - ",1)[1].split(",")}
-            v[m.group(1)]=("PASS" if m.group(2)=="✓" else "FAIL",tags)
-    return v
+    return released_verdicts("llama-pllum-8b")
 def bv():
-    return {r["task_id"]:(r["q8_no_repair"],{t for t in (r["tags_q8_no_repair"] or "").split(";") if t})
-            for r in csv.DictReader(open("results/v3_11b_2026-06-18/analysis/per_task_matrix.csv",encoding="utf-8"))}
+    return released_verdicts("bielik-11b-v3")
 
 for label, verds, total in (("PLLuM-8B Q8_0", pv(), 67), ("Bielik-11B Q8_0", bv(), 67)):
     A=B=C=0; exC=[]
