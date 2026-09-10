@@ -4,9 +4,11 @@ Wariancja: klasyfikacja A/B/C i sufity dla szesciu runow seedowych.
 
 CO LICZY:
 Liczy dla kazdego seeda udzial krokow, ktore nie parsuja sie, oraz sufit hojny. Liczba do
-papera: po darowaniu kaskad formatu seed1 laduje na 0.776 (Q8) i 0.881 (Q3), czyli w tym
-samym pasmie co faktyczne wyniki seedow 2 i 3. Rozklad dwumodalny dotyczy dyscypliny koperty,
-a nie zdolnosci rozwiazania zadania.
+papera: po darowaniu wszystkich porazek z tagiem formatu seed1 laduje na 0.776 (Q8) i 0.881 (Q3).
+To gorne granice, nie odzyskane wyniki: na Q3 w pasmie analogicznych sufitow seedow 2 i 3, na Q8
+ponizej. Zapasc seed1 wiaze sie z porazkami z tagiem formatu; te granice nie ustalaja, czy format
+degraduje sie przed rozumowaniem (paper, par. 9 i App. K). Zbior FORMAT obejmuje final_answer_missing,
+ktory w taksonomii par. 3.7 jest tagiem tool fixation.
 
 CZYTA Z:
   results/v3_11b_variance_2026-07-29/*/{run.log,trajectories.jsonl}

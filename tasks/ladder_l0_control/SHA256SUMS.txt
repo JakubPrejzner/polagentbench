@@ -1,4 +1,4 @@
-# byte-identical copies of tasks/ladder_ext/v3_ext_L0_{a..j}.yaml, used as the environment control of the 2026-09 L0e rerun
+# copies of tasks/ladder_ext/v3_ext_L0_{a..j}.yaml with CRLF line endings (content identical; the originals are committed with LF), used as the environment control of the 2026-09 L0e rerun
 e34fc6dd34b990c99248b796f78a6875c345ab8f084eabd71d5a5cff46016583  tasks/ladder_l0_control/v3_ext_L0_a.yaml
 4964b007ee15a8e230533b0332f59a76452480cacd1f5a9d4f61af4ac13a4284  tasks/ladder_l0_control/v3_ext_L0_b.yaml
 7922de2b162c9c63a1e29b13ff8cbf4f47a4712dd81f37b2eab29c001a966896  tasks/ladder_l0_control/v3_ext_L0_c.yaml

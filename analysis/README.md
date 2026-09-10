@@ -77,7 +77,7 @@ odzyskaną skutecznością ani wykluczeniem wszystkich niedopasowań promptu.
 |---|---|---|
 | `variance_seed_config.py` | Analiza 2, TABELA 2a i 2b | seed jest w rekordach trajektorii (1/2/3, T=0.7), choć w `summary.json` jest `None`; seed1 wyprodukował **więcej** tekstu i pracował **dłużej** niż seed2 |
 | `variance_classify.py` | Analiza 2, TABELA 2c | sufity seed1 przy darowaniu wszystkich porażek z tagiem formatu: **0.776 (Q8)** i **0.881 (Q3)**; poniżej analogicznych sufitów seedów 2 i 3 na Q8, w ich paśmie na Q3 |
-| `variance_repetition.py` | Analiza 2, TABELA 2d + cytaty 2c | hipoteza „zaklinowany sampler" **obalona**: najwięcej powtórzeń ma seed3 (13,7%), który punktuje najlepiej |
+| `variance_repetition.py` | Analiza 2, TABELA 2d + cytaty 2c | hipoteza „zaklinowany sampler" **obalona**: najwięcej powtórzeń ma seed3 (13,7%), który na Q3_K_M punktuje najlepiej (51/67), a na Q8_0 ma 48/67 wobec 49/67 seeda 2 |
 
 **Finding:** zapaść seed=1 wiąże się z porażkami z tagami formatu. Darowanie wyłącznie
 porażek czysto formatowych daje 22/67 i 30/67. Sufity dopuszczające porażki mieszane, ale
@@ -108,8 +108,9 @@ sufitów pozostałych seedów. Te granice nie ustalają, czy format degraduje si
 | `q4dip_deep_ceiling.py` | Analiza 1, TABELA 1d | w kubełku 4+ po darowaniu A+B dip nadal **−0.320**; Q5 osiąga 25/25 |
 | `q4dip_group.py` | Analiza 1, TABELA 1f | 14 zadań padających tylko na Q4 to **spójna grupa**: 79% ma ≥4 wywołania przy 37% w suicie; 6 z 14 ma identyczny zestaw tagów |
 
-**Finding:** dip Q4 to degradacja dyscypliny koperty ujawniająca się dopiero powyżej trzech
-wywołań narzędzi, gdzie zamienia się w niedokończone łańcuchy i timeouty.
+**Hipoteza robocza, nie finding papera:** dip Q4 może być degradacją dyscypliny koperty,
+ujawniającą się dopiero powyżej trzech wywołań narzędzi, gdzie zamienia się w niedokończone
+łańcuchy i timeouty. Paper nie podaje mechanizmu dipu (§5) i wymienia go wśród otwartych anomalii.
 
 ### Atraktor „59"
 

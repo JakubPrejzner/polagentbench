@@ -5,7 +5,7 @@ WHAT WAS RUN
   16 runs x 10 tasks on one Vast.ai RTX 4090 instance, 2026-09-07 18:35–18:48 UTC:
     8 x tasks/ladder_l0e         (L0e: original L0 tasks with the sentence
                                   "Nie używaj żadnych narzędzi. Odpowiedz bezpośrednio." prepended to the prompt)
-    8 x tasks/ladder_l0_control  (L0 control: byte-identical copies of tasks/ladder_ext/v3_ext_L0_{a..j}.yaml,
+    8 x tasks/ladder_l0_control  (L0 control: content-identical copies, CRLF line endings, of tasks/ladder_ext/v3_ext_L0_{a..j}.yaml,
                                   run right after the same model load, to separate prompt effect from box effect)
   cells: bielik-11b-v3 {Q8_0, Q4_K_M} x repair {off, on}; bielik-minitron-7b-v3 {Q8_0, Q4_K_M} x repair {off, on}
   CLI: python -m polagentbench.cli run-suite --seeds 42 --temperature 0.0 --n-ctx 8192 --chat-format chatml
