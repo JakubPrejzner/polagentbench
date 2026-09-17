@@ -96,8 +96,10 @@ sufitów pozostałych seedów. Te granice nie ustalają, czy format degraduje si
 | `ladder_controls.py` | Analiza 3, kontrola + przyczyny L0 | L1/L2 **nie** darowane, bo golden nieobecny (59 zamiast 46.4); L0 = 0.00 ma dwie różne przyczyny |
 | `l0e_analysis.py` | rerun L0e i kontrola L0; zapis macierzy i raportu | L0e: 11B Q8_0 **1/10**, pozostałe komórki **0/10**; kontrola **80/80** zgodna w raw output, tokenach i werdyktach |
 
-**Finding:** przewidywany SKRÓT nie istnieje. Bliskie porażki L3N to wyłącznie typowanie pola
-`answer`. `ladder_controls.py` jest kontrolą, że tolerancja nie rozdaje darmowych punktów.
+**Finding:** przewidywany SKRÓT nie istnieje. Bliskie porażki L3N u 11B to wyłącznie typowanie pola
+`answer`; u 7B osiem z dziewięciu darowanych trajektorii ma dodatkowo `invalid_json` z odrzuconego
+piątego wywołania `convert_temperature`, które korekta też daruje (samo poprawienie typu odpowiedzi
+zostawiłoby 7B Q8_0 na 0/10). `ladder_controls.py` jest kontrolą, że tolerancja nie rozdaje darmowych punktów.
 
 ### Dip Q4 na Bielik-11B
 

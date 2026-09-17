@@ -111,7 +111,10 @@ class Task(BaseModel):
     max_steps: int = Field(default=8, gt=0, description="Maximum action steps before timeout.")
     constraints: list[str] = Field(
         default_factory=list,
-        description="Free-form natural-language constraints. Used by the constraint evaluator.",
+        description=(
+            "Free-form design notes for human readers. Documentation only: never passed to the "
+            "model and never read by the oracle."
+        ),
     )
     source_path: Path | None = Field(
         default=None,

@@ -40,7 +40,7 @@ __all__ = ["WeatherEnvironment"]
 # major European + a handful of others.
 
 _CITIES: dict[str, dict[str, Any]] = {
-    # --- Poland (30) ---
+    # --- Poland (32) ---
     "Warszawa": {"temperature_c": 9.0, "condition": "cloudy", "humidity_pct": 70},
     "Kraków": {"temperature_c": 7.5, "condition": "cloudy", "humidity_pct": 72},
     "Łódź": {"temperature_c": 8.0, "condition": "rain", "humidity_pct": 80},

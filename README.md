@@ -41,12 +41,16 @@ Those components and parameter count are not separable in this pair. PLLuM adds 
    first step. PLLuM fails on *content* with step parse rates of 71.8–92.0% across
    precisions; at 8-bit, 83.9% parse against 89.3% for the 11B.
 
-3. **Scaffolding gives an exploratory lift after answer-typing correction.** Original L0
+3. **Scaffolding gives an exploratory lift once format-only failures carrying the gold
+   value are forgiven.** Original L0
    scores `0/10` in all eight Bielik model/precision cells at either repair setting, but
    its prompt did not state the oracle's no-tool rule. The explicit-prohibition rerun
    L0e gives the 8-bit 11B `1/10` and the 7B `0/10`: the 11B obeys and usually selects the
    wrong readings, while the 7B still calls tools. Four explicit calls lift the corrected
    rates to `9/10` and `7/10` (`p = 0.0078` and `0.016`, duplicate inputs counted).
+   For the 11B the forgiven failures are pure answer typing (a bare float); for the 7B
+   eight of nine also contain a rejected fifth `convert_temperature` call, so correcting
+   the answer type alone would leave the 7B at `0/10`.
    L0 and L0e each have eight distinct inputs in ten slots. Removing instances e and f
    from both paired rungs gives `1/8 → 7/8` (`p = 0.03125`) and `0/8 → 5/8`
    (`p = 0.0625`). No contrast survives Holm correction over the twelve contrasts fixed
@@ -65,8 +69,10 @@ Those components and parameter count are not separable in this pair. PLLuM adds 
    values shifted the apparent threshold by a full bit; strict answer typing penalized
    correct computations; a no-tool rule was enforced without being stated in the prompt;
    and priority-ordered failure labels shaped interpretation without changing pass/fail.
-   Affected scores are reported in strict and corrected form or, for the no-tool rule,
-   with the L0e rerun.
+   Affected ladder scores are reported in strict and corrected form or, for the no-tool
+   rule, with the L0e rerun. The three pilot L0 tasks inside the main suite carry the same
+   unstated rule and remain as run: they cost the 11B one, one and two slots at Q8_0, Q6_K
+   and Q3_K_M that end with the exact gold value.
 
 ## Repository layout
 
@@ -79,6 +85,8 @@ tasks/ladder_ext/       ladder46: 10 slots per L0/L1/L2/L3N, 6 at L3T; L0 has 8 
 tasks/ladder_l0e/       explicit-prohibition L0 rerun tasks
 tasks/ladder_l0_control/ unchanged L0 copies run as the same-session control
 tasks/smoke/            5 warm-up tasks
+                        (the `constraints` field of every task file is design documentation:
+                        it is never passed to the model and never read by the oracle)
 analysis/               analysis readers and artifact generators; see analysis/README.md
   failure_classifier.py canonical four-way failure taxonomy
   bootstrap_ci.py       95% intervals for all 18 model x quant cells
