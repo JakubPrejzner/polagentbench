@@ -68,3 +68,7 @@ wandb/
 
 # uv lock should be committed; uncomment to ignore if you change your mind
 # uv.lock
+
+# Internal development logs: kept locally, not part of the public release
+SESSION_LOG.md
+docs/prompt_03_5_report.md
