@@ -3,8 +3,10 @@
 Wariancja: test hipotezy o zaklinowanym samplerze i porownanie zadan miedzy seedami.
 
 CO LICZY:
-Liczy powtarzalnosc wyjsc w obrebie trajektorii, czyli sygnature zapetlenia. Hipoteza sie NIE
-broni: najwiecej powtorzen ma seed3 (13.7 procent), ktory punktuje najlepiej. Drugi blok
+Liczy powtarzalnosc wyjsc w obrebie trajektorii, czyli sygnature zapetlenia. Na Q8_0 hipoteza
+sie NIE broni: najwiecej powtorzen ma seed3 (13.7 procent wobec 6.3 i 6.5), a ma 48/67 wobec
+49/67 seeda 2. Na Q3_K_M najwiecej powtarza zapadniety seed1 (9.8 procent wobec 2.5 i 3.6),
+wiec tam hipoteza zostaje otwarta (jak w pracy, sekcja 9). Drugi blok
 wybiera zadania PASS w seed2 i seed3 przy FAIL w seed1 i pokazuje krok po kroku, co seed1
 zrobil inaczej - ta sama tresc odpowiedzi, tylko jeden nadmiarowy krok bez JSON-a albo nazwa
 narzedzia wpisana rowniez w pole action.

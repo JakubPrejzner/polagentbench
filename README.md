@@ -49,8 +49,10 @@ Those components and parameter count are not separable in this pair. PLLuM adds 
    wrong readings, while the 7B still calls tools. Four explicit calls lift the corrected
    rates to `9/10` and `7/10` (`p = 0.0078` and `0.016`, duplicate inputs counted).
    For the 11B the forgiven failures are pure answer typing (a bare float); for the 7B
-   eight of nine also contain a rejected fifth `convert_temperature` call, so correcting
-   the answer type alone would leave the 7B at `0/10`.
+   eight of nine also contain a rejected fifth `convert_temperature` call that converts its
+   Fahrenheit mean once more as if it were Celsius (a unit error the parser happened to
+   block), so correcting the answer type alone would leave the 7B at `0/10`, and its `7/10`
+   is an upper bound.
    L0 and L0e each have eight distinct inputs in ten slots. Removing instances e and f
    from both paired rungs gives `1/8 → 7/8` (`p = 0.03125`) and `0/8 → 5/8`
    (`p = 0.0625`). No contrast survives Holm correction over the twelve contrasts fixed

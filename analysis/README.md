@@ -77,7 +77,7 @@ odzyskaną skutecznością ani wykluczeniem wszystkich niedopasowań promptu.
 |---|---|---|
 | `variance_seed_config.py` | Analiza 2, TABELA 2a i 2b | seed jest w rekordach trajektorii (1/2/3, T=0.7), choć w `summary.json` jest `None`; seed1 wyprodukował **więcej** tekstu i pracował **dłużej** niż seed2 |
 | `variance_classify.py` | Analiza 2, TABELA 2c | sufity seed1 przy darowaniu wszystkich porażek z tagiem formatu: **0.776 (Q8)** i **0.881 (Q3)**; poniżej analogicznych sufitów seedów 2 i 3 na Q8, w ich paśmie na Q3 |
-| `variance_repetition.py` | Analiza 2, TABELA 2d + cytaty 2c | hipoteza „zaklinowany sampler" **obalona**: najwięcej powtórzeń ma seed3 (13,7%), który na Q3_K_M punktuje najlepiej (51/67), a na Q8_0 ma 48/67 wobec 49/67 seeda 2 |
+| `variance_repetition.py` | Analiza 2, TABELA 2d + cytaty 2c | hipoteza „zaklinowany sampler" obalona tylko na Q8_0: tam najwięcej powtórzeń ma seed3 (13,7% wobec 6,3% i 6,5%), a ma 48/67 wobec 49/67 seeda 2; na Q3_K_M najwięcej powtarza zapadnięty seed1 (9,8% wobec 2,5% i 3,6%), więc tam hipoteza zostaje otwarta, jak w pracy (§9) |
 
 **Finding:** zapaść seed=1 wiąże się z porażkami z tagami formatu. Darowanie wyłącznie
 porażek czysto formatowych daje 22/67 i 30/67. Sufity dopuszczające porażki mieszane, ale
