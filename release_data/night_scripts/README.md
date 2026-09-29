@@ -1,4 +1,4 @@
-# night_scripts — zapis historyczny
+# night_scripts - zapis historyczny
 
 Te siedem plików to harness, którym wykonano nocną sesję pomiarową z 2026-07-29
 (commit `e584b38`): rozszerzoną drabinę dla obu Bielików, pełną krzywą PLLuM-8B,
@@ -8,7 +8,7 @@ uzupełnienie siatki 7B o Q6_K i Q5_K_M oraz sondę wariancji przy `T=0.7`.
 zaszytą na sztywno ścieżkę `/workspace/polagentbench` (katalog roboczy wynajętej
 maszyny GPU) i zakładają układ katalogów tamtego środowiska. Nie uruchomią się
 bez zmian gdzie indziej. Publikujemy je, bo są jedynym zapisem tego, jak dokładnie
-powstały dane w `../trajectories/` — łącznie z kolejnością faz, decyzjami bramek
+powstały dane w `../trajectories/` - łącznie z kolejnością faz, decyzjami bramek
 i wartościami przekazanymi do CLI.
 
 Przebieg tamtej nocy, z decyzjami i alertami, jest w `../NIGHT_LOG.txt`.

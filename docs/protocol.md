@@ -1,8 +1,8 @@
 # Universal Action Protocol
 
 PolAgentBench evaluates tool-using LLM agents across model families and
-quantization levels. To make those comparisons sound, every model — Bielik,
-Qwen, anything else — must speak the **same** action language. This document
+quantization levels. To make those comparisons sound, every model - Bielik,
+Qwen, anything else - must speak the **same** action language. This document
 specifies that language.
 
 ## Why a universal protocol (and not native tool calling)
@@ -67,7 +67,7 @@ Field rules:
 ### Strictness
 
 The pydantic models use `extra="forbid"`: any unexpected field causes a
-`schema_violation`. This is intentional — quantized models often hallucinate
+`schema_violation`. This is intentional - quantized models often hallucinate
 adjacent fields (`"function"` instead of `"tool"`, `"params"` instead of
 `"arguments"`) and we want those failures to be visible in the metrics rather
 than silently coerced.

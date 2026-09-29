@@ -1,14 +1,14 @@
 # PolAgentBench
 
-A Polish-first benchmark for measuring what GGUF quantization does to **agentic tool use** —
-calling the right tools in the right order and computing correct answers from their outputs —
+A Polish-first benchmark for measuring what GGUF quantization does to **agentic tool use** -
+calling the right tools in the right order and computing correct answers from their outputs -
 in a realistic non-English setting: Polish prompts against English tool schemas.
 
 Three models, six precisions each (Q8_0 down to Q2_K), 113 deterministic tasks.
 This repository holds the benchmark, the trajectories used in the released analysis, the per-task outcome
 matrices, the failure classifier, and the analysis scripts behind the paper.
 
-Companion paper: `paper/polagentbench_paper.tex` —
+Companion paper: `paper/polagentbench_paper.tex` -
 *Quantization Thresholds Replicate, Failure Modes Do Not: A Three-Model Study of Agentic
 Tool Use in Polish from 8-bit to 2-bit*.
 
@@ -30,7 +30,7 @@ Those components and parameter count are not separable in this pair. PLLuM adds 
 1. **The collapse threshold replicates across all three models.** Every model falls off a
    cliff between 3-bit and 2-bit: 11B `0.716 → 0.045`, 7B `0.463 → 0.149`, PLLuM
    `0.224 → 0.015`. Paired exact McNemar gives `p < 0.0001` for both Bieliks and
-   `p = 0.00012` for PLLuM — across a fourfold spread in absolute capability, across
+   `p = 0.00012` for PLLuM - across a fourfold spread in absolute capability, across
    compression by pruning plus distillation, and across a change of pretraining family.
 
 2. **Failure modes do not replicate. Three models, three signatures.** At 2-bit the 7B
@@ -38,7 +38,7 @@ Those components and parameter count are not separable in this pair. PLLuM adds 
    answer (38/57 failures); its predominant budget exhaustion belongs to 3-bit (27/36
    failures, median 26,833 tokens over 8 steps). The 11B at 2-bit fails short (median
    1,506.5 tokens and one step); 37/64 failures emit a well-formed final answer at the
-   first step. PLLuM fails on *content* with step parse rates of 71.8–92.0% across
+   first step. PLLuM fails on *content* with step parse rates of 71.8-92.0% across
    precisions; at 8-bit, 83.9% parse against 89.3% for the 11B.
 
 3. **Scaffolding gives an exploratory lift once format-only failures carrying the gold
@@ -105,7 +105,7 @@ docs/                   protocol specification and provenance
 ## Published data
 
 `release_data/` holds the artifacts the paper promises, from the seven **clean** run
-directories only — runs whose commit stamp matches the released code for `tasks/adversarial`
+directories only - runs whose commit stamp matches the released code for `tasks/adversarial`
 and `src/polagentbench/eval`. Older, superseded run directories are not published with these
 clean curves; their results should not be pooled with the released data.
 
@@ -126,7 +126,7 @@ release_data/
 
 **Verdicts in the CSVs come from the oracle only.** Where a run log exists it is parsed;
 otherwise verdicts are recomputed with `eval.smoke.evaluate`. Every cell is validated against
-`num_passed` in its `summary.json` — the generator aborts on any mismatch.
+`num_passed` in its `summary.json` - the generator aborts on any mismatch.
 
 The L0e rerun and its same-session L0 control are under `runs/L0e_2026-09/`, with
 160 trajectories across 16 runs. All 80 control trajectories match the released L0 raw
@@ -216,8 +216,8 @@ the historical `results/` layout.
 
 ## Licensing
 
-Code is **MIT** (`LICENSE`). The data in `release_data/` — trajectories, run logs,
-summaries, outcome matrices, and the historical night-run scripts — is
+Code is **MIT** (`LICENSE`). The data in `release_data/` - trajectories, run logs,
+summaries, outcome matrices, and the historical night-run scripts - is
 **CC BY 4.0** (`release_data/LICENSE`).
 
 ## Citation

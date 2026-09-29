@@ -1,9 +1,9 @@
-# analysis/ — skrypty odtwarzające tabele do papera
+# analysis/ - skrypty odtwarzające tabele do papera
 
 Większość skryptów diagnostycznych **wyłącznie czyta dane** z `release_data/`, `results/`,
 `runs/` i `tasks/`. Wyjątki: `gen_release_data.py` usuwa i odtwarza `release_data/`,
 a `l0e_analysis.py` nadpisuje macierze oraz raport `runs/L0e_2026-09/L0E_ANALYSIS.md`.
-Żaden nie potrzebuje GPU ani sieci — liczby powstają z danych na dysku.
+Żaden nie potrzebuje GPU ani sieci - liczby powstają z danych na dysku.
 
 ## Uruchamianie
 
@@ -12,7 +12,7 @@ cd <katalog główny repo>
 .venv/Scripts/python.exe -B analysis/<skrypt>.py
 ```
 
-Ścieżki w skryptach są **względne wobec katalogu głównego repo** — uruchomienie z wnętrza
+Ścieżki w skryptach są **względne wobec katalogu głównego repo** - uruchomienie z wnętrza
 `analysis/` nie zadziała. Część skryptów importuje kod repo (`sys.path.insert(0, "src")`),
 co również zakłada uruchomienie z góry. Wymagany interpreter to `.venv/Scripts/python.exe`;
 systemowy Python nie ma `pydantic` ani `pyyaml`.
@@ -55,7 +55,7 @@ przy pustym wyniku nie oznacza odtworzenia analizy.
 |---|---|---|
 | `inventory.py` | tabela inwentarza 120 runów | jedyny run `main67` z 18 spłaszczonymi kopertami to PLLuM-8B Q8, nie Bielik-7B (te mają 31 i 50) |
 
-Ten skrypt służy do **targetowania** — puszczać go przed każdą nową analizą, żeby nie liczyć
+Ten skrypt służy do **targetowania** - puszczać go przed każdą nową analizą, żeby nie liczyć
 na niewłaściwym runie.
 
 ### PLLuM: zepsuty szablon czy brak zdolności
@@ -106,7 +106,7 @@ zostawiłoby 7B Q8_0 na 0/10). `ladder_controls.py` jest kontrolą, że toleranc
 | skrypt | produkuje | kluczowa liczba |
 |---|---|---|
 | `q4dip_classify.py` | Analiza 1, TABELA 1a i 1b | dip kurczy się z **−0.209 do −0.090** wobec Q5, ale **nie znika** |
-| `q4dip_depth.py` | Analiza 1, TABELA 1c i 1e | cały dip w kubełku **4+ wywołań** (0.32 vs 0.84); przy 2–3 Q4 jest **wyżej** niż Q5 |
+| `q4dip_depth.py` | Analiza 1, TABELA 1c i 1e | cały dip w kubełku **4+ wywołań** (0.32 vs 0.84); przy 2-3 Q4 jest **wyżej** niż Q5 |
 | `q4dip_deep_ceiling.py` | Analiza 1, TABELA 1d | w kubełku 4+ po darowaniu A+B dip nadal **−0.320**; Q5 osiąga 25/25 |
 | `q4dip_group.py` | Analiza 1, TABELA 1f | 14 zadań padających tylko na Q4 to **spójna grupa**: 79% ma ≥4 wywołania przy 37% w suicie; 6 z 14 ma identyczny zestaw tagów |
 
@@ -120,11 +120,11 @@ ujawniającą się dopiero powyżej trzech wywołań narzędzi, gdzie zamienia s
 |---|---|---|
 | `attractor59_cases.py` | Analiza 2, TABELA 2a | 4 zadania L1, 3 różne goldeny, **ta sama odpowiedź 59** |
 | `attractor59_count.py` | Analiza 2, TABELA 2b i 2c | 59.0 to **najczęstsza liczbowa odpowiedź w zbiorze**: 91 par, 26 zadań, 23 runy, oba modele |
-| `attractor59_negative_controls.py` | Analiza 2, TABELA 2d w. 1–5 | 59 nie jest goldenem **żadnego** zadania; nie ma go w `weather.py`; 15 °C nie istnieje w środowisku |
+| `attractor59_negative_controls.py` | Analiza 2, TABELA 2d w. 1-5 | 59 nie jest goldenem **żadnego** zadania; nie ma go w `weather.py`; 15 °C nie istnieje w środowisku |
 | `attractor59_direction.py` | Analiza 2, TABELA 2d w. 6 | wszystkie 11 przypadków z 59 w wyniku narzędzia: model sam podał `value=15` |
-| `attractor59_scan_raw.py` | *materiał pomocniczy* | **NIE używać do liczb** — zlicza obiekty JSON, zawyża (61 → 4189 zamiast 32) |
+| `attractor59_scan_raw.py` | *materiał pomocniczy* | **NIE używać do liczb** - zlicza obiekty JSON, zawyża (61 → 4189 zamiast 32) |
 
-**Finding:** 59 = F(15 °C) to atraktor spoza kontekstu — fallback na pamięć parametryczną przy
+**Finding:** 59 = F(15 °C) to atraktor spoza kontekstu - fallback na pamięć parametryczną przy
 poprawnie wykonanym łańcuchu narzędzi.
 
 ### Envelope collapse: rozdzielenie zmiennych
@@ -141,9 +141,9 @@ nie efektem głębokości łańcucha. U Bielika-7B żadna z dwóch zmiennych nie
 
 | skrypt | produkuje | kluczowa liczba |
 |---|---|---|
-| `mode_tables.py` | cztery tabele naraz: `tab:purity`, `tab:modes`, `tab:tokens`, `tab:tokens-full` — 18 komórek `main67` (repair=off) | artefakt zaokrągleniowy pada **dokładnie raz w całej siatce**, na 7B `Q5_K_M`; komórka 7B `Q6_K` ma **0 z 21 porażek jednokategoryjnych**, czyli jest najmniej rozstrzygniętą etykietą w Tab. 1 |
+| `mode_tables.py` | cztery tabele naraz: `tab:purity`, `tab:modes`, `tab:tokens`, `tab:tokens-full` - 18 komórek `main67` (repair=off) | artefakt zaokrągleniowy pada **dokładnie raz w całej siatce**, na 7B `Q5_K_M`; komórka 7B `Q6_K` ma **0 z 21 porażek jednokategoryjnych**, czyli jest najmniej rozstrzygniętą etykietą w Tab. 1 |
 
-Ten skrypt czyta **`release_data/`, nie `results/`** — działa więc
+Ten skrypt czyta **`release_data/`, nie `results/`** - działa więc
 z samego klona repo, bez surowych katalogów runów. Werdykty wyłącznie z oracle'a
 (`eval.smoke.evaluate`), etykiety z `failure_classifier.py`. Ma wbudowaną bramkę: 36 komórek
 opublikowanych w paperze jest wpisanych ręcznie w `PUBLISHED_MODES` / `PUBLISHED_TOKENS`,
@@ -167,14 +167,14 @@ komórkę i sprawdza, że każda czytana trajektoria ma `temperature == 0`.
 
 Bootstrap percentylowy, przedział 95%, **resampling po zadaniach** (wektor 0/1 długości 67,
 losowanie ze zwracaniem), 10 000 prób. Ziarno na sztywno `SEED = 42` (to samo, przy którym policzono przedziały w paperze), wektor uporządkowany
-rosnąco po `task_id`, `random.Random(SEED)` tworzony osobno dla każdej komórki — wynik jest
+rosnąco po `task_id`, `random.Random(SEED)` tworzony osobno dla każdej komórki - wynik jest
 odtwarzalny co do cyfry (sprawdzone trzema przebiegami, identyczne bajt w bajt). Werdykty
 wyłącznie z oracle'a: `run.log` tam, gdzie istnieje (7B Q5/Q6 i wszystkie komórki PLLuM),
-odtworzenie przez `eval.smoke.evaluate` tam, gdzie go nie ma (11B Q2–Q8, 7B Q2/Q3/Q4/Q8).
+odtworzenie przez `eval.smoke.evaluate` tam, gdzie go nie ma (11B Q2-Q8, 7B Q2/Q3/Q4/Q8).
 Każda komórka przechodzi walidację `len(wektor) == 67` **i** `sum(wektor) == summary.num_passed`;
 przy uruchomieniu z 2026-08-23 **0 rozjazdów na 36 komórek** (18 repair=off + 18 repair=ON).
 
-**Finding:** różnice między Q8, Q6 i Q5 mieszczą się w szumie próby — na tej suicie nie da się
+**Finding:** różnice między Q8, Q6 i Q5 mieszczą się w szumie próby - na tej suicie nie da się
 ich rozstrzygnąć. Q3→Q2 jest jedynym spadkiem, który wychodzi poza szerokość CI u wszystkich
 trzech modeli, ale margines jest ostry tylko na 11B (3,00× szerokości CI); na PLLuM wynosi
 1,08× szerokości CI, czyli ledwie.
@@ -184,8 +184,8 @@ trzech modeli, ale margines jest ostry tylko na 11B (3,00× szerokości CI); na 
 **1. Dwa katalogi nie mają `run.log`.** `results/v3_11b_2026-06-18/` (commit `a023c3b`) i
 `results/v3_full_2026-06-02/` przechowują tylko `summary.json` + `trajectories.jsonl`.
 Skrypty z rodziny `q4dip_*` odtwarzają więc werdykty oracle kodem repo
-(`polagentbench.eval.smoke.evaluate`). Odtworzenie jest walidowane w dwie strony — wobec
-`num_passed` z `summary.json` **i** wobec `analysis/per_task_matrix.csv` — i wymaga zera
+(`polagentbench.eval.smoke.evaluate`). Odtworzenie jest walidowane w dwie strony - wobec
+`num_passed` z `summary.json` **i** wobec `analysis/per_task_matrix.csv` - i wymaga zera
 rozjazdów. Warunek, który to legalizuje: `tasks/adversarial/` oraz `src/polagentbench/eval/`
 są bajt w bajt identyczne między `a023c3b` a HEAD (`git diff --stat a023c3b HEAD -- <ścieżka>`
 jest puste). **Przed ponownym użyciem tych skryptów na innym commicie sprawdź ten diff.**
@@ -193,4 +193,4 @@ jest puste). **Przed ponownym użyciem tych skryptów na innym commicie sprawdź
 **2. Flaga `trajectory.success` nie jest oracle'em.** W runie PLLuM Q8 flaga daje 66/67, a oracle
 13/67. Wszystkie liczby w tabelach pochodzą z oracle'a (`run.log` albo `evaluate()`), nigdy
 z `trajectory.success`. Podobnie `summary.json` **nie zapisuje** `seed` ani `temperature` na
-najwyższym poziomie (oba `None`) — te pola są w rekordach trajektorii i stamtąd je czytamy.
+najwyższym poziomie (oba `None`) - te pola są w rekordach trajektorii i stamtąd je czytamy.
